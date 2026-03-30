@@ -5,7 +5,7 @@ class JobStatus(StrEnum):
     PENDING = "pending"
     QUEUED = "queued"
     RUNNING = "running"
-    COLLECTING_ARTIFACTS = "collecting_artifacts"
+    COLLECTING = "collecting"
     SCORING = "scoring"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -14,7 +14,22 @@ class JobStatus(StrEnum):
 
 
 class SubmissionStatus(StrEnum):
+    PENDING = "pending"
     QUEUED = "queued"
     RUNNING = "running"
+    COLLECTING = "collecting"
+    SCORING = "scoring"
     COMPLETED = "completed"
     FAILED = "failed"
+    TIMED_OUT = "timed_out"
+    CANCELLED = "cancelled"
+
+
+class SubmissionType(StrEnum):
+    CSV = "csv"
+    NOTEBOOK = "notebook"
+
+
+class ScoringDirection(StrEnum):
+    MAX = "max"
+    MIN = "min"

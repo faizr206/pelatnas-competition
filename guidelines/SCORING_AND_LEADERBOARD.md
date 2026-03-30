@@ -6,6 +6,8 @@
 - scoring policy must be versioned
 - final displayed ranking should come from persisted score records
 - never trust self-reported metrics if you can recompute them
+- scoring must be flexible enough for a competition-specific custom metric
+- competition admin defines the scoring metric for each competition
 
 ## Submission types
 
@@ -40,6 +42,7 @@ Define clearly:
 - private/public split
 - freeze behavior after competition end
 - team merge rules if teams are supported
+- use the current leaderboard model rather than adding a new one for Phase 1
 
 ## Projection model
 

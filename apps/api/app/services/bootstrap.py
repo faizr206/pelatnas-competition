@@ -38,6 +38,18 @@ def bootstrap_local_state(settings: Settings) -> None:
                 visibility="public",
                 status="active",
                 created_by=user.id,
+                scoring_metric="row_count",
+                scoring_direction="max",
+                best_submission_rule="best_score",
+                max_submissions_per_day=5,
+                max_runtime_minutes=20,
+                max_memory_mb=4096,
+                max_cpu=2,
+                allow_csv_submissions=True,
+                allow_notebook_submissions=True,
+                source_retention_days=30,
+                log_retention_days=14,
+                artifact_retention_days=14,
             )
             session.add(competition)
             session.flush()

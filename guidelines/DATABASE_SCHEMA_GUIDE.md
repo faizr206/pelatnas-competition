@@ -43,6 +43,9 @@
 - scoring_version
 - rules_version
 
+Notes:
+- Phase 1 uses a single phase per competition.
+
 ### `datasets`
 - id
 - competition_id
@@ -52,6 +55,10 @@
 - checksum
 - is_active
 - created_at
+
+Notes:
+- keep old dataset versions visible
+- `is_active` marks the current dataset version, not a hidden archive
 
 ### `submissions`
 - id
@@ -66,6 +73,9 @@
 - runtime_image_digest
 - status
 - created_at
+
+Notes:
+- `submission_type` should cover `csv` and `notebook` for Phase 1
 
 ### `jobs`
 - id
@@ -97,6 +107,10 @@
 - scoring_version
 - created_at
 
+Notes:
+- keep score records permanent
+- scoring logic is competition-specific and versioned
+
 ### `leaderboard_entries`
 - id
 - competition_id
@@ -108,6 +122,10 @@
 - rank
 - visibility_type
 - updated_at
+
+Notes:
+- this is the current leaderboard projection
+- best submissions stay permanent
 
 ### `audit_logs`
 - id

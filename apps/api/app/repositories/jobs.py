@@ -11,6 +11,12 @@ def get_job_by_id(db: Session, job_id: str) -> Job | None:
     return db.scalar(select(Job).where(Job.id == job_id))
 
 
+def get_latest_job_for_submission(db: Session, submission_id: str) -> Job | None:
+    return db.scalar(
+        select(Job).where(Job.submission_id == submission_id).order_by(Job.created_at.desc())
+    )
+
+
 def create_job(
     db: Session,
     *,

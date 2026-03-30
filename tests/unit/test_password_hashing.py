@@ -8,4 +8,3 @@ def test_hash_password_supports_long_passwords() -> None:
 
     assert verify_password(password, password_hash) is True
     assert verify_password("q" * 120, password_hash) is False
-

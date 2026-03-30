@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -31,3 +32,43 @@ def get_active_phase(db: Session, competition_id: str) -> CompetitionPhase | Non
         .where(CompetitionPhase.competition_id == competition_id)
         .order_by(CompetitionPhase.starts_at.asc())
     )
+
+
+def create_competition(
+    db: Session,
+    *,
+    payload: dict[str, Any],
+    created_by: str,
+) -> Competition:
+    phase_data = payload.pop("phase")
+    competition = Competition(created_by=created_by, **payload)
+    db.add(competition)
+    db.flush()
+
+    phase = CompetitionPhase(competition_id=competition.id, **phase_data)
+    db.add(phase)
+    db.flush()
+    return competition
+
+
+def update_competition(
+    db: Session,
+    *,
+    competition: Competition,
+    payload: dict[str, Any],
+) -> Competition:
+    phase_data = payload.pop("phase", None)
+    for key, value in payload.items():
+        setattr(competition, key, value)
+
+    if phase_data is not None:
+        phase = get_active_phase(db, competition.id)
+        if phase is None:
+            phase = CompetitionPhase(competition_id=competition.id, **phase_data)
+            db.add(phase)
+        else:
+            for key, value in phase_data.items():
+                setattr(phase, key, value)
+
+    db.flush()
+    return competition

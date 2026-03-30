@@ -1,6 +1,6 @@
 # Pelatnas Competition Platform
 
-Phase 0 foundation for a Kaggle-like competition platform.
+Phase 1 MVP for a Kaggle-like competition platform.
 
 ## Stack
 
@@ -24,16 +24,18 @@ tests/
 guidelines/
 ```
 
-## Phase 0 scope
+## Phase 1 scope
 
-This repo implements the locked Phase 0 decisions from [guidelines/PHASE_0_GUIDELINES.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/guidelines/PHASE_0_GUIDELINES.md):
+This repo implements the locked Phase 0 and Phase 1 decisions from [guidelines/PHASE_0_GUIDELINES.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/guidelines/PHASE_0_GUIDELINES.md) and [guidelines/PHASE_1_GUIDELINES.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/guidelines/PHASE_1_GUIDELINES.md):
 
 - monorepo layout and local Docker runtime
 - session auth with login, me, and logout
-- PostgreSQL, Redis, Celery worker, and local disk storage
-- base competition, submission, job, score, and leaderboard records
+- admin competition creation and single-phase configuration
+- dataset upload and version history
+- CSV or notebook submission upload
+- worker-backed scoring and persisted leaderboard projection
+- retention cleanup task skeletons plus docs
 - migration baseline and CI checks
-- secrets, backups, and sandbox policy docs
 
 ## Quick start
 
@@ -41,7 +43,7 @@ This repo implements the locked Phase 0 decisions from [guidelines/PHASE_0_GUIDE
 2. Run `docker compose up --build`.
 3. Open `http://localhost:3000`.
 4. Sign in with the credentials from `.env`.
-5. Use the dashboard to create a smoke-test submission and watch the queued job complete.
+5. Use the dashboard to create a competition, upload a dataset version, submit a CSV or notebook file, and watch the queued job complete.
 
 ## Local commands
 
@@ -62,4 +64,5 @@ This repo implements the locked Phase 0 decisions from [guidelines/PHASE_0_GUIDE
 - Secrets and backups: [docs/operations/SECRETS_AND_BACKUPS.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/operations/SECRETS_AND_BACKUPS.md)
 - Sandbox policy: [docs/security/SANDBOX_POLICY.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/security/SANDBOX_POLICY.md)
 - Phase 0 notes: [docs/architecture/PHASE_0_IMPLEMENTATION.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/architecture/PHASE_0_IMPLEMENTATION.md)
-
+- Phase 1 notes: [docs/architecture/PHASE_1_IMPLEMENTATION.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/architecture/PHASE_1_IMPLEMENTATION.md)
+- Retention policy: [docs/operations/RETENTION_POLICY.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/operations/RETENTION_POLICY.md)

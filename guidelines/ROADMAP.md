@@ -9,13 +9,15 @@
 - see `PHASE_0_GUIDELINES.md` for the exact setup checklist and locked-in decisions
 
 ## Phase 1: MVP
-- competition CRUD
+- simple competition CRUD
+- single-phase competition setup
 - dataset upload and versioning
-- file-based submission
+- CSV or notebook submission
 - async job queue
 - score persistence
 - simple leaderboard
 - admin panel for competition creation
+- see `PHASE_1_GUIDELINES.md` for the exact competition rules and MVP constraints
 
 ## Phase 2: code submission
 - submission archive upload

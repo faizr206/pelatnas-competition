@@ -1,4 +1,6 @@
-from sqlalchemy import select
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from packages.db.models import Submission
@@ -12,7 +14,11 @@ def create_submission(
     user_id: str,
     submission_type: str,
     source_archive_path: str,
-    manifest_path: str,
+    manifest_path: str | None,
+    source_original_filename: str,
+    source_content_type: str,
+    source_checksum: str,
+    source_size_bytes: int,
 ) -> Submission:
     submission = Submission(
         competition_id=competition_id,
@@ -21,7 +27,11 @@ def create_submission(
         submission_type=submission_type,
         source_archive_path=source_archive_path,
         manifest_path=manifest_path,
-        status="queued",
+        source_original_filename=source_original_filename,
+        source_content_type=source_content_type,
+        source_checksum=source_checksum,
+        source_size_bytes=source_size_bytes,
+        status="pending",
     )
     db.add(submission)
     db.flush()
@@ -38,4 +48,30 @@ def list_submissions_for_user(
             .where(Submission.user_id == user_id)
             .order_by(Submission.created_at.desc())
         ).all()
+    )
+
+
+def get_submission_by_id(db: Session, submission_id: str) -> Submission | None:
+    return db.scalar(select(Submission).where(Submission.id == submission_id))
+
+
+def count_submissions_for_day(
+    db: Session,
+    *,
+    competition_id: str,
+    user_id: str,
+    when: datetime | None = None,
+) -> int:
+    current = when or datetime.now(UTC)
+    start = current.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=1)
+    return int(
+        db.scalar(
+            select(func.count(Submission.id))
+            .where(Submission.competition_id == competition_id)
+            .where(Submission.user_id == user_id)
+            .where(Submission.created_at >= start)
+            .where(Submission.created_at < end)
+        )
+        or 0
     )

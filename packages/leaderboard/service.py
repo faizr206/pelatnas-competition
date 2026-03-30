@@ -1,39 +1,99 @@
-from sqlalchemy import select
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import cast
+
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from packages.db.models import LeaderboardEntry, Submission
+from packages.core.constants import ScoringDirection
+from packages.db.models import Competition, LeaderboardEntry, Score, Submission
 
 
-def upsert_leaderboard_entry(
+@dataclass(frozen=True)
+class SubmissionScoreRow:
+    submission: Submission
+    score: Score
+
+
+def refresh_leaderboard(
     db: Session,
     *,
-    submission: Submission,
-    score_value: float,
+    competition: Competition,
+    phase_id: str,
     visibility_type: str,
-) -> LeaderboardEntry:
-    entry = db.scalar(
-        select(LeaderboardEntry)
-        .where(LeaderboardEntry.competition_id == submission.competition_id)
-        .where(LeaderboardEntry.phase_id == submission.phase_id)
-        .where(LeaderboardEntry.user_id == submission.user_id)
+) -> list[LeaderboardEntry]:
+    rows = [
+        SubmissionScoreRow(submission=submission, score=score)
+        for submission, score in db.execute(
+            select(Submission, Score)
+            .join(Score, Score.submission_id == Submission.id)
+            .where(Submission.competition_id == competition.id)
+            .where(Submission.phase_id == phase_id)
+        ).all()
+    ]
+
+    best_by_user: dict[str, SubmissionScoreRow] = {}
+    for row in rows:
+        existing = best_by_user.get(row.submission.user_id)
+        if existing is None or _is_better(
+            candidate=row,
+            current=existing,
+            scoring_direction=competition.scoring_direction,
+        ):
+            best_by_user[row.submission.user_id] = row
+
+    ranked_rows = sorted(
+        best_by_user.values(),
+        key=lambda row: _ranking_key(
+            row=row,
+            scoring_direction=competition.scoring_direction,
+        ),
+    )
+
+    db.execute(
+        delete(LeaderboardEntry)
+        .where(LeaderboardEntry.competition_id == competition.id)
+        .where(LeaderboardEntry.phase_id == phase_id)
         .where(LeaderboardEntry.visibility_type == visibility_type)
     )
-    if entry is None:
+
+    entries: list[LeaderboardEntry] = []
+    for rank, row in enumerate(ranked_rows, start=1):
         entry = LeaderboardEntry(
-            competition_id=submission.competition_id,
-            phase_id=submission.phase_id,
-            user_id=submission.user_id,
-            best_submission_id=submission.id,
-            score_value=score_value,
+            competition_id=competition.id,
+            phase_id=phase_id,
+            user_id=row.submission.user_id,
+            best_submission_id=row.submission.id,
+            score_value=row.score.score_value,
+            rank=rank,
             visibility_type=visibility_type,
         )
         db.add(entry)
-        db.flush()
-        return entry
+        entries.append(entry)
 
-    should_replace = score_value > entry.score_value
-    if should_replace:
-        entry.score_value = score_value
-        entry.best_submission_id = submission.id
     db.flush()
-    return entry
+    return entries
+
+
+def _is_better(
+    *,
+    candidate: SubmissionScoreRow,
+    current: SubmissionScoreRow,
+    scoring_direction: str,
+) -> bool:
+    if candidate.score.score_value == current.score.score_value:
+        if candidate.submission.created_at == current.submission.created_at:
+            return candidate.submission.id < current.submission.id
+        return cast(bool, candidate.submission.created_at < current.submission.created_at)
+
+    if scoring_direction == ScoringDirection.MIN.value:
+        return candidate.score.score_value < current.score.score_value
+
+    return candidate.score.score_value > current.score.score_value
+
+
+def _ranking_key(*, row: SubmissionScoreRow, scoring_direction: str) -> tuple[float, object, str]:
+    score = row.score.score_value
+    sortable_score = score if scoring_direction == ScoringDirection.MIN.value else -score
+    return sortable_score, row.submission.created_at, row.submission.id

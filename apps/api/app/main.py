@@ -7,7 +7,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from apps.api.app.config import get_settings
 from apps.api.app.middleware.request_context import RequestContextMiddleware
-from apps.api.app.routers import auth, competitions, jobs, submissions
+from apps.api.app.routers import auth, competitions, datasets, jobs, leaderboard, submissions
 from apps.api.app.services.bootstrap import bootstrap_local_state
 from packages.observability.logging import configure_logging
 
@@ -53,5 +53,7 @@ def api_health() -> dict[str, str]:
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(competitions.router, prefix="/api/v1")
+app.include_router(datasets.router, prefix="/api/v1")
 app.include_router(submissions.router, prefix="/api/v1")
 app.include_router(jobs.router, prefix="/api/v1")
+app.include_router(leaderboard.router, prefix="/api/v1")

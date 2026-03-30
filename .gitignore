@@ -12,6 +12,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.tsbuildinfo
 .venv/
 venv/
 node_modules/
@@ -20,4 +21,3 @@ apps/web/node_modules/
 apps/web/out/
 data/storage/*
 !data/storage/.gitkeep
-

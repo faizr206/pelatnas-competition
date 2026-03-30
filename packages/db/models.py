@@ -42,7 +42,24 @@ class Competition(TimestampMixin, Base):
     visibility: Mapped[str] = mapped_column(String(50), nullable=False, default="public")
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="draft")
     created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    scoring_metric: Mapped[str] = mapped_column(String(100), nullable=False, default="row_count")
+    scoring_direction: Mapped[str] = mapped_column(String(20), nullable=False, default="max")
+    best_submission_rule: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="best_score"
+    )
+    max_submissions_per_day: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    max_runtime_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=20)
+    max_memory_mb: Mapped[int] = mapped_column(Integer, nullable=False, default=4096)
+    max_cpu: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
+    allow_csv_submissions: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    allow_notebook_submissions: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    source_retention_days: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
+    log_retention_days: Mapped[int] = mapped_column(Integer, nullable=False, default=14)
+    artifact_retention_days: Mapped[int] = mapped_column(Integer, nullable=False, default=14)
     phases: Mapped[list[CompetitionPhase]] = relationship(
+        back_populates="competition", cascade="all, delete-orphan"
+    )
+    datasets: Mapped[list[Dataset]] = relationship(
         back_populates="competition", cascade="all, delete-orphan"
     )
 
@@ -63,6 +80,24 @@ class CompetitionPhase(TimestampMixin, Base):
     competition: Mapped[Competition] = relationship(back_populates="phases")
 
 
+class Dataset(TimestampMixin, Base):
+    __tablename__ = "datasets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    competition_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("competitions.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    checksum: Mapped[str] = mapped_column(String(255), nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(255), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    competition: Mapped[Competition] = relationship(back_populates="datasets")
+
+
 class Submission(TimestampMixin, Base):
     __tablename__ = "submissions"
 
@@ -76,10 +111,14 @@ class Submission(TimestampMixin, Base):
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
     submission_type: Mapped[str] = mapped_column(String(50), nullable=False)
     source_archive_path: Mapped[str] = mapped_column(String(1024), nullable=False)
-    manifest_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    manifest_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    source_original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_content_type: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_checksum: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     runtime_image: Mapped[str | None] = mapped_column(String(255), nullable=True)
     runtime_image_digest: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    status: Mapped[str] = mapped_column(String(50), nullable=False, default="queued")
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
 
 
 class Job(TimestampMixin, Base):

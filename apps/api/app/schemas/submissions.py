@@ -1,13 +1,15 @@
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from apps.api.app.schemas.jobs import JobResponse
 
-class SubmissionCreateRequest(BaseModel):
-    submission_type: Literal["file"] = "file"
-    source_archive_path: str = "phase0/source.zip"
-    manifest_path: str = "phase0/manifest.json"
+
+class ScoreSummaryResponse(BaseModel):
+    metric_name: str
+    metric_value: float
+    score_value: float
+    scoring_version: str
 
 
 class SubmissionResponse(BaseModel):
@@ -20,5 +22,21 @@ class SubmissionResponse(BaseModel):
     submission_type: str
     status: str
     source_archive_path: str
-    manifest_path: str
+    source_original_filename: str
+    source_content_type: str
+    source_checksum: str
+    source_size_bytes: int
+    created_at: datetime
+    latest_score: ScoreSummaryResponse | None = None
+    latest_job: JobResponse | None = None
+
+
+class SubmissionArtifactResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    artifact_type: str
+    storage_path: str
+    checksum: str | None
+    size_bytes: int
     created_at: datetime

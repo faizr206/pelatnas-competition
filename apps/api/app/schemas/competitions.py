@@ -1,6 +1,56 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class CompetitionPhaseCreateRequest(BaseModel):
+    name: str = "main"
+    starts_at: datetime
+    ends_at: datetime
+    submission_limit_per_day: int = Field(default=5, ge=1)
+    scoring_version: str = "v1"
+    rules_version: str = "v1"
+
+
+class CompetitionCreateRequest(BaseModel):
+    slug: str
+    title: str
+    description: str
+    visibility: str = "public"
+    status: str = "draft"
+    scoring_metric: str = "row_count"
+    scoring_direction: str = "max"
+    best_submission_rule: str = "best_score"
+    max_submissions_per_day: int = Field(default=5, ge=1)
+    max_runtime_minutes: int = Field(default=20, ge=1)
+    max_memory_mb: int = Field(default=4096, ge=256)
+    max_cpu: int = Field(default=2, ge=1)
+    allow_csv_submissions: bool = True
+    allow_notebook_submissions: bool = True
+    source_retention_days: int = Field(default=30, ge=1)
+    log_retention_days: int = Field(default=14, ge=1)
+    artifact_retention_days: int = Field(default=14, ge=1)
+    phase: CompetitionPhaseCreateRequest
+
+
+class CompetitionUpdateRequest(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    visibility: str | None = None
+    status: str | None = None
+    scoring_metric: str | None = None
+    scoring_direction: str | None = None
+    best_submission_rule: str | None = None
+    max_submissions_per_day: int | None = Field(default=None, ge=1)
+    max_runtime_minutes: int | None = Field(default=None, ge=1)
+    max_memory_mb: int | None = Field(default=None, ge=256)
+    max_cpu: int | None = Field(default=None, ge=1)
+    allow_csv_submissions: bool | None = None
+    allow_notebook_submissions: bool | None = None
+    source_retention_days: int | None = Field(default=None, ge=1)
+    log_retention_days: int | None = Field(default=None, ge=1)
+    artifact_retention_days: int | None = Field(default=None, ge=1)
+    phase: CompetitionPhaseCreateRequest | None = None
 
 
 class CompetitionPhaseResponse(BaseModel):
@@ -24,4 +74,16 @@ class CompetitionResponse(BaseModel):
     description: str
     visibility: str
     status: str
+    scoring_metric: str
+    scoring_direction: str
+    best_submission_rule: str
+    max_submissions_per_day: int
+    max_runtime_minutes: int
+    max_memory_mb: int
+    max_cpu: int
+    allow_csv_submissions: bool
+    allow_notebook_submissions: bool
+    source_retention_days: int
+    log_retention_days: int
+    artifact_retention_days: int
     phases: list[CompetitionPhaseResponse]

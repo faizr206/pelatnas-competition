@@ -2,6 +2,7 @@ import os
 
 from celery import Celery
 
+from apps.worker.worker.job_handlers.retention_cleanup import cleanup_retention_targets
 from apps.worker.worker.job_handlers.submission_pipeline import process_submission_job
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -16,5 +17,10 @@ celery_app.conf.update(
 
 
 @celery_app.task(name="submission.process")
-def process_submission(job_id: str) -> str:
+def process_submission_task(job_id: str) -> str:
     return process_submission_job(job_id)
+
+
+@celery_app.task(name="retention.cleanup")
+def retention_cleanup_task() -> int:
+    return cleanup_retention_targets()
