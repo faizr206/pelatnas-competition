@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Pelatnas Competition Platform",
-  description: "Phase 0 foundation for the competition platform",
+  description: "Competition browsing, submission, and authentication screens",
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
   return (
     <html lang="en">
@@ -17,4 +18,3 @@ export default function RootLayout({
     </html>
   );
 }
-

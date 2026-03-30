@@ -1,229 +1,44 @@
-:root {
-  color-scheme: light;
-  --bg: #f4efe6;
-  --panel: rgba(255, 251, 245, 0.9);
-  --panel-strong: #fffaf2;
-  --line: rgba(83, 59, 41, 0.14);
-  --text: #2b211b;
-  --muted: #655548;
-  --accent: #be5b31;
-  --accent-dark: #8d3f1c;
-  --success: #2f7d4a;
-  --error: #9d2f2f;
-  --shadow: 0 22px 50px rgba(58, 37, 20, 0.12);
-  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-* {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  margin: 0;
-  min-height: 100%;
-  background:
-    radial-gradient(circle at top left, rgba(250, 206, 137, 0.65), transparent 35%),
-    radial-gradient(circle at bottom right, rgba(221, 156, 112, 0.45), transparent 30%),
-    linear-gradient(135deg, #f7f0e5, #eadbc8 60%, #f3ede7);
-  color: var(--text);
-}
-
-body {
-  min-height: 100vh;
-}
-
-a {
-  color: inherit;
-}
-
-button,
-input {
-  font: inherit;
-}
-
-.page {
-  min-height: 100vh;
-  padding: 32px 20px 48px;
-}
-
-.shell {
-  max-width: 1080px;
-  margin: 0 auto;
-  display: grid;
-  gap: 20px;
-}
-
-.hero {
-  padding: 28px;
-  border: 1px solid var(--line);
-  border-radius: 28px;
-  background: linear-gradient(135deg, rgba(255, 250, 242, 0.96), rgba(249, 235, 220, 0.9));
-  box-shadow: var(--shadow);
-}
-
-.eyebrow {
-  margin: 0 0 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  font-size: 0.76rem;
-  color: var(--accent-dark);
-}
-
-.hero h1 {
-  margin: 0 0 12px;
-  font-size: clamp(2.2rem, 5vw, 4.4rem);
-  line-height: 0.95;
-}
-
-.hero p {
-  margin: 0;
-  max-width: 760px;
-  color: var(--muted);
-  line-height: 1.6;
-}
-
-.grid {
-  display: grid;
-  gap: 20px;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-}
-
-.card {
-  padding: 24px;
-  border-radius: 24px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(10px);
-}
-
-.card h2 {
-  margin: 0 0 14px;
-  font-size: 1.2rem;
-}
-
-.stack {
-  display: grid;
-  gap: 14px;
-}
-
-.field {
-  display: grid;
-  gap: 8px;
-}
-
-.field label {
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-.field input {
-  width: 100%;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.button {
-  border: 0;
-  border-radius: 999px;
-  padding: 12px 18px;
-  background: var(--accent);
-  color: #fff8f1;
-  cursor: pointer;
-  transition:
-    transform 120ms ease,
-    background 120ms ease;
-}
-
-.button:hover {
-  transform: translateY(-1px);
-  background: var(--accent-dark);
-}
-
-.button.secondary {
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--line);
-}
-
-.button:disabled {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(190, 91, 49, 0.11);
-  color: var(--accent-dark);
-  font-size: 0.84rem;
-}
-
-.list {
-  display: grid;
-  gap: 12px;
-}
-
-.list-item {
-  padding: 14px;
-  border-radius: 16px;
-  border: 1px solid var(--line);
-  background: var(--panel-strong);
-}
-
-.list-item strong,
-.job-title {
-  display: block;
-  margin-bottom: 6px;
-}
-
-.meta {
-  color: var(--muted);
-  font-size: 0.92rem;
-  line-height: 1.5;
-}
-
-.message {
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: rgba(190, 91, 49, 0.08);
-  color: var(--accent-dark);
-}
-
-.message.error {
-  background: rgba(157, 47, 47, 0.09);
-  color: var(--error);
-}
-
-.message.success {
-  background: rgba(47, 125, 74, 0.1);
-  color: var(--success);
-}
-
-code {
-  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-  font-size: 0.94em;
-}
-
-@media (max-width: 640px) {
-  .page {
-    padding: 20px 14px 32px;
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 4%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 4%;
+    --primary: 0 0% 12%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 94%;
+    --secondary-foreground: 222 47% 4%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 95%;
+    --accent-foreground: 222 47% 4%;
+    --destructive: 0 68% 46%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 92%;
+    --input: 0 0% 92%;
+    --ring: 0 0% 12%;
+    --radius: 0.75rem;
   }
 
-  .hero,
-  .card {
-    padding: 20px;
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply min-h-screen bg-background text-foreground antialiased;
+  }
+
+  a {
+    @apply text-inherit;
   }
 }
-
