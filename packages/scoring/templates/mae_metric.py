@@ -1,3 +1,5 @@
+from typing import Any
+
 """
 Template: Mean Absolute Error
 
@@ -22,6 +24,3 @@ def score_submission(
         total_error += abs(prediction - target)
 
     return total_error / len(solution_rows)
-
-
-from typing import Any

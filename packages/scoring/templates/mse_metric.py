@@ -1,3 +1,5 @@
+from typing import Any
+
 """
 Template: Mean Squared Error
 
@@ -22,6 +24,3 @@ def score_submission(
         total_error += (prediction - target) ** 2
 
     return total_error / len(solution_rows)
-
-
-from typing import Any
