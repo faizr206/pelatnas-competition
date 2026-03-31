@@ -80,9 +80,7 @@ def list_metric_templates() -> list[MetricTemplate]:
                 description=(module.__doc__ or "Scoring template").strip(),
                 code=path.read_text(encoding="utf-8"),
                 default_metric_name=str(getattr(module, "METRIC_NAME", path.stem)),
-                default_scoring_direction=str(
-                    getattr(module, "SCORING_DIRECTION", "min")
-                ),
+                default_scoring_direction=str(getattr(module, "SCORING_DIRECTION", "min")),
             )
         )
 

@@ -11,7 +11,11 @@ from apps.api.app.repositories.competitions import get_competition_by_slug
 from apps.api.app.schemas.scoring import MetricTemplateResponse, ScoringConfigResponse
 from packages.core.constants import ScoringDirection
 from packages.db.models import User
-from packages.scoring.service import list_metric_templates, validate_metric_script, validate_solution_csv
+from packages.scoring.service import (
+    list_metric_templates,
+    validate_metric_script,
+    validate_solution_csv,
+)
 from packages.storage.service import save_text_file, save_upload
 
 router = APIRouter(tags=["scoring"])

@@ -7,7 +7,15 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from apps.api.app.config import get_settings
 from apps.api.app.middleware.request_context import RequestContextMiddleware
-from apps.api.app.routers import auth, competitions, datasets, jobs, leaderboard, scoring, submissions
+from apps.api.app.routers import (
+    auth,
+    competitions,
+    datasets,
+    jobs,
+    leaderboard,
+    scoring,
+    submissions,
+)
 from apps.api.app.services.bootstrap import bootstrap_local_state
 from packages.observability.logging import configure_logging
 
