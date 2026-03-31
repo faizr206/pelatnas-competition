@@ -116,7 +116,7 @@ def _score_with_custom_metric(
 
     module = _load_metric_module(Path(metric_script_path))
     raw_score = module.score_submission(aligned_solution_rows, aligned_submission_rows)
-    if not isinstance(raw_score, (int, float)):
+    if not isinstance(raw_score, int | float):
         raise ValueError("score_submission must return a numeric score.")
 
     score = float(raw_score)

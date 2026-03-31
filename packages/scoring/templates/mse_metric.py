@@ -13,7 +13,7 @@ SCORING_DIRECTION = "min"
 def score_submission(solution_rows, submission_rows):
     total_error = 0.0
 
-    for solution_row, submission_row in zip(solution_rows, submission_rows):
+    for solution_row, submission_row in zip(solution_rows, submission_rows, strict=False):
         target = float(solution_row["target"])
         prediction = float(submission_row["prediction"])
         total_error += (prediction - target) ** 2
