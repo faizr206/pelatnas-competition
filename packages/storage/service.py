@@ -62,6 +62,24 @@ def save_upload(
     )
 
 
+def save_text_file(
+    storage_root: str,
+    *,
+    category: str,
+    competition_slug: str,
+    filename: str,
+    contents: str,
+) -> str:
+    root = ensure_storage_root(storage_root)
+    target_dir = root / category / competition_slug
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_name = filename.replace("/", "_").replace("\\", "_")
+    target_path = target_dir / f"{uuid4()}-{safe_name}"
+    target_path.write_text(contents, encoding="utf-8")
+    return str(target_path)
+
+
 def copy_file_to_versioned_path(
     storage_root: str,
     *,

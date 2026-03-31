@@ -70,6 +70,8 @@ def process_submission_job(job_id: str) -> str:
                 submission_type=submission.submission_type,
                 source_path=submission.source_archive_path,
                 scoring_metric=competition.scoring_metric,
+                solution_path=competition.solution_path,
+                metric_script_path=competition.metric_script_path,
             )
             metrics_path = artifact_dir / "metrics.json"
             metrics_payload = {

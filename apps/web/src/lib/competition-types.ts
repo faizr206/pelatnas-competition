@@ -35,7 +35,60 @@ export type Competition = {
   source_retention_days: number;
   log_retention_days: number;
   artifact_retention_days: number;
+  solution_filename: string | null;
+  metric_script_filename: string | null;
   phases: CompetitionPhase[];
+};
+
+export type CompetitionPhasePayload = {
+  name: string;
+  starts_at: string;
+  ends_at: string;
+  submission_limit_per_day: number;
+  scoring_version: string;
+  rules_version: string;
+};
+
+export type CompetitionCreatePayload = {
+  slug: string;
+  title: string;
+  description: string;
+  visibility: string;
+  status: string;
+  scoring_metric: string;
+  scoring_direction: string;
+  best_submission_rule: string;
+  max_submissions_per_day: number;
+  max_runtime_minutes: number;
+  max_memory_mb: number;
+  max_cpu: number;
+  allow_csv_submissions: boolean;
+  allow_notebook_submissions: boolean;
+  source_retention_days: number;
+  log_retention_days: number;
+  artifact_retention_days: number;
+  phase: CompetitionPhasePayload;
+};
+
+export type CompetitionUpdatePayload = Omit<CompetitionCreatePayload, "slug">;
+
+export type MetricTemplate = {
+  name: string;
+  title: string;
+  description: string;
+  code: string;
+  default_metric_name: string;
+  default_scoring_direction: string;
+};
+
+export type ScoringConfig = {
+  competition_id: string;
+  scoring_metric: string;
+  scoring_direction: string;
+  solution_filename: string | null;
+  metric_script_filename: string | null;
+  metric_code: string | null;
+  templates: MetricTemplate[];
 };
 
 export type Dataset = {

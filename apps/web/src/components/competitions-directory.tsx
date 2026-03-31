@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { SessionActions } from "@/components/session-actions";
 import { SiteHeader } from "@/components/site-header";
-import { UserChip } from "@/components/user-chip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getCompetitions, getOptionalSession } from "@/lib/api";
@@ -71,7 +71,7 @@ export function CompetitionsDirectory({
         activeNav={activeNav}
         action={
           user ? (
-            <UserChip user={user} />
+            <SessionActions user={user} />
           ) : (
             <Button
               asChild

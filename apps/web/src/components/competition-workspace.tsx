@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 
+import { SessionActions } from "@/components/session-actions";
 import { SiteHeader } from "@/components/site-header";
-import { UserChip } from "@/components/user-chip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -315,7 +315,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
           activeNav="competitions"
           action={
             user ? (
-              <UserChip user={user} />
+              <SessionActions user={user} />
             ) : (
               <Button
                 asChild
@@ -341,7 +341,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
         activeNav="competitions"
         action={
           user ? (
-            <UserChip user={user} />
+            <SessionActions user={user} />
           ) : (
             <Button
               asChild
@@ -377,19 +377,30 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
                 {competition.description}
               </p>
             </div>
-            <Button
-              className="h-12 rounded-full bg-[#1f1f1f] px-8 text-sm font-semibold hover:bg-[#111111]"
-              onClick={() => {
-                if (!user) {
-                  router.push(`/login?next=/competitions/${competition.slug}`);
-                  return;
-                }
+            <div className="flex flex-wrap gap-3">
+              {user?.is_admin ? (
+                <Button
+                  asChild
+                  variant="outline"
+                  className="h-12 rounded-full border-[#e4e4e4] bg-white px-6 text-sm font-semibold text-[#1f1f1f] hover:bg-[#f6f6f6]"
+                >
+                  <Link href={`/admin/competitions/${competition.slug}`}>Edit Competition</Link>
+                </Button>
+              ) : null}
+              <Button
+                className="h-12 rounded-full bg-[#1f1f1f] px-8 text-sm font-semibold hover:bg-[#111111]"
+                onClick={() => {
+                  if (!user) {
+                    router.push(`/login?next=/competitions/${competition.slug}`);
+                    return;
+                  }
 
-                setActiveTab("submissions");
-              }}
-            >
-              Submit Prediction
-            </Button>
+                  setActiveTab("submissions");
+                }}
+              >
+                Submit Prediction
+              </Button>
+            </div>
           </section>
 
           {resourceMessage ? (

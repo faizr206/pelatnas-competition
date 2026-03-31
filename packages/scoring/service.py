@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import importlib.util
 import json
+from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 
 SUPPORTED_SCORING_METRICS = {
     "row_count",
@@ -14,15 +17,45 @@ SUPPORTED_SCORING_METRICS = {
     "checksum_mod_1000",
 }
 
+TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+
+
+@dataclass(frozen=True)
+class MetricTemplate:
+    name: str
+    title: str
+    description: str
+    code: str
+    default_metric_name: str
+    default_scoring_direction: str
+
 
 def compute_submission_score(
     *,
     submission_type: str,
     source_path: str,
     scoring_metric: str,
+    solution_path: str | None = None,
+    metric_script_path: str | None = None,
 ) -> tuple[float, float]:
+    if bool(solution_path) != bool(metric_script_path):
+        raise ValueError(
+            "Competition scoring is incomplete. Save both solution.csv and the metric script."
+        )
+
+    if solution_path and metric_script_path:
+        return _score_with_custom_metric(
+            submission_type=submission_type,
+            source_path=source_path,
+            solution_path=solution_path,
+            metric_script_path=metric_script_path,
+        )
+
     if scoring_metric not in SUPPORTED_SCORING_METRICS:
-        raise ValueError(f"Unsupported scoring metric: {scoring_metric}")
+        raise ValueError(
+            "Unsupported scoring metric. Configure and save both solution.csv and a custom "
+            "metric script for this competition."
+        )
 
     source = Path(source_path)
     if submission_type == "csv":
@@ -33,6 +66,123 @@ def compute_submission_score(
         raise ValueError(f"Unsupported submission type: {submission_type}")
 
     return metric_value, metric_value
+
+
+def list_metric_templates() -> list[MetricTemplate]:
+    templates: list[MetricTemplate] = []
+
+    for path in sorted(TEMPLATES_DIR.glob("*.py")):
+        module = _load_metric_module(path)
+        templates.append(
+            MetricTemplate(
+                name=path.stem,
+                title=path.stem.replace("_", " ").title(),
+                description=(module.__doc__ or "Scoring template").strip(),
+                code=path.read_text(encoding="utf-8"),
+                default_metric_name=str(getattr(module, "METRIC_NAME", path.stem)),
+                default_scoring_direction=str(
+                    getattr(module, "SCORING_DIRECTION", "min")
+                ),
+            )
+        )
+
+    return templates
+
+
+def validate_solution_csv(path: str) -> None:
+    rows = _read_csv_rows(Path(path))
+    if not rows:
+        raise ValueError("solution.csv must contain at least one row.")
+
+
+def validate_metric_script(path: str) -> None:
+    _load_metric_module(Path(path))
+
+
+def _score_with_custom_metric(
+    *,
+    submission_type: str,
+    source_path: str,
+    solution_path: str,
+    metric_script_path: str,
+) -> tuple[float, float]:
+    if submission_type != "csv":
+        raise ValueError("Custom scoring currently supports csv submissions only.")
+
+    solution_rows = _read_csv_rows(Path(solution_path))
+    submission_rows = _read_csv_rows(Path(source_path))
+    aligned_solution_rows, aligned_submission_rows = _align_rows_by_id(
+        solution_rows=solution_rows,
+        submission_rows=submission_rows,
+    )
+
+    module = _load_metric_module(Path(metric_script_path))
+    raw_score = module.score_submission(aligned_solution_rows, aligned_submission_rows)
+    if not isinstance(raw_score, (int, float)):
+        raise ValueError("score_submission must return a numeric score.")
+
+    score = float(raw_score)
+    return score, score
+
+
+def _read_csv_rows(path: Path) -> list[dict[str, str]]:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        fieldnames = reader.fieldnames or []
+        if "Id" not in fieldnames:
+            raise ValueError(f"{path.name} must contain an Id column.")
+        rows = list(reader)
+
+    ids = [row.get("Id", "").strip() for row in rows]
+    if any(not value for value in ids):
+        raise ValueError(f"{path.name} contains blank Id values.")
+    if len(set(ids)) != len(ids):
+        raise ValueError(f"{path.name} contains duplicate Id values.")
+
+    return rows
+
+
+def _align_rows_by_id(
+    *,
+    solution_rows: list[dict[str, str]],
+    submission_rows: list[dict[str, str]],
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    solution_by_id = {row["Id"]: row for row in solution_rows}
+    submission_by_id = {row["Id"]: row for row in submission_rows}
+
+    if set(solution_by_id) != set(submission_by_id):
+        missing = sorted(set(solution_by_id) - set(submission_by_id))
+        unexpected = sorted(set(submission_by_id) - set(solution_by_id))
+        details: list[str] = []
+        if missing:
+            details.append(f"missing Ids: {', '.join(missing[:5])}")
+        if unexpected:
+            details.append(f"unexpected Ids: {', '.join(unexpected[:5])}")
+        raise ValueError("Submission Id values do not match solution.csv. " + "; ".join(details))
+
+    ordered_ids = [row["Id"] for row in solution_rows]
+    return (
+        [solution_by_id[item_id] for item_id in ordered_ids],
+        [submission_by_id[item_id] for item_id in ordered_ids],
+    )
+
+
+def _load_metric_module(path: Path) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(
+        f"competition_metric_{hashlib.sha256(str(path).encode()).hexdigest()[:12]}",
+        path,
+    )
+    if spec is None or spec.loader is None:
+        raise ValueError("Metric script could not be loaded.")
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    score_submission = getattr(module, "score_submission", None)
+    if not callable(score_submission):
+        raise ValueError("Metric script must define a callable score_submission function.")
+
+    return module
 
 
 def _score_csv(*, source: Path, scoring_metric: str) -> float:

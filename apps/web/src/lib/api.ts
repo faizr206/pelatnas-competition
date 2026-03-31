@@ -1,9 +1,12 @@
 import type {
   Competition,
+  CompetitionCreatePayload,
+  CompetitionUpdatePayload,
   Dataset,
   Job,
   LeaderboardEntry,
   LeaderboardVisibility,
+  ScoringConfig,
   Submission,
   User,
 } from "@/lib/competition-types";
@@ -11,6 +14,10 @@ import type {
 export const apiBaseUrl =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 export const apiOrigin = apiBaseUrl.replace(/\/api\/v1$/, "");
+
+export function getSolutionFileUrl(slug: string) {
+  return `${apiBaseUrl}/competitions/${slug}/solution-file`;
+}
 
 async function readErrorMessage(response: Response) {
   try {
@@ -125,4 +132,77 @@ export async function login(email: string, password: string) {
   });
 
   return expectJson<User>(response);
+}
+
+export async function logout() {
+  const response = await fetch(`${apiBaseUrl}/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  return expectJson<null>(response);
+}
+
+export async function createCompetition(payload: CompetitionCreatePayload) {
+  const response = await fetch(`${apiBaseUrl}/competitions`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return expectJson<Competition>(response);
+}
+
+export async function updateCompetition(
+  slug: string,
+  payload: CompetitionUpdatePayload,
+) {
+  const response = await fetch(`${apiBaseUrl}/competitions/${slug}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return expectJson<Competition>(response);
+}
+
+export async function getScoringConfig(slug: string) {
+  const response = await fetch(`${apiBaseUrl}/competitions/${slug}/scoring-config`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  return expectJson<ScoringConfig>(response);
+}
+
+export async function updateScoringConfig(
+  slug: string,
+  payload: {
+    metricName: string;
+    scoringDirection: string;
+    metricCode: string;
+    solutionFile?: File | null;
+  },
+) {
+  const formData = new FormData();
+  formData.append("metric_name", payload.metricName);
+  formData.append("scoring_direction", payload.scoringDirection);
+  formData.append("metric_code", payload.metricCode);
+  if (payload.solutionFile) {
+    formData.append("solution_file", payload.solutionFile);
+  }
+
+  const response = await fetch(`${apiBaseUrl}/competitions/${slug}/scoring-config`, {
+    method: "PUT",
+    credentials: "include",
+    body: formData,
+  });
+
+  return expectJson<ScoringConfig>(response);
 }

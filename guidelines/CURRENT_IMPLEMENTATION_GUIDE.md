@@ -31,6 +31,17 @@ Use this document as the first-stop reference for the repository's current Phase
 - `/login`
   - email/password login form
   - supports `?next=/some/path` redirect after successful login
+- `/profile`
+  - signed-in account summary page
+  - exposes current session identity and quick links
+- `/admin`
+  - admin-only competition management page
+  - main admin hub for creation and edit routing
+- `/admin/new`
+  - dedicated create-competition screen
+- `/admin/competitions/[slug]`
+  - dedicated edit screen for one competition
+  - supports phase edits and scoring setup
 
 ### Current route ownership in `apps/web`
 
@@ -42,14 +53,34 @@ Use this document as the first-stop reference for the repository's current Phase
   - competition workspace entry point
 - `src/app/login/page.tsx`
   - login entry point
+- `src/app/profile/page.tsx`
+  - profile entry point
+- `src/app/admin/page.tsx`
+  - admin entry point
+- `src/app/admin/new/page.tsx`
+  - create competition entry point
+- `src/app/admin/competitions/[slug]/page.tsx`
+  - edit competition entry point
 - `src/components/competitions-directory.tsx`
   - live competition list UI
 - `src/components/competition-workspace.tsx`
   - competition detail workspace UI
 - `src/components/login-form-page.tsx`
   - login form behavior
+- `src/components/profile-page.tsx`
+  - signed-in profile summary UI
+- `src/components/admin-panel-page.tsx`
+  - admin hub UI
+- `src/components/admin-create-competition-page.tsx`
+  - competition creation UI
+- `src/components/admin-edit-competition-page.tsx`
+  - single-competition edit UI
+- `src/components/admin-competition-form.tsx`
+  - shared competition form primitives
 - `src/components/site-header.tsx`
   - shared top navigation shell
+- `src/components/session-actions.tsx`
+  - signed-in header actions including logout
 - `src/lib/api.ts`
   - all current frontend API calls
 - `src/lib/competition-types.ts`
@@ -118,6 +149,19 @@ Use this document as the first-stop reference for the repository's current Phase
 - Logout endpoint:
   - `POST /api/v1/auth/logout`
 
+### Current authenticated navigation behavior
+
+- Signed-in users now get header actions for:
+  - `Profile`
+  - `Logout`
+- Admin users additionally get:
+  - `Admin`
+- Competition workspace now shows an `Edit Competition` shortcut for admins.
+- The dedicated competition edit screen now includes:
+  - `solution.csv` upload
+  - editable Python metric code
+  - built-in metric templates such as `mse_metric.py`
+
 ### Auth requirement matrix
 
 - public:
@@ -140,6 +184,8 @@ Use this document as the first-stop reference for the repository's current Phase
   - `POST /api/v1/competitions`
   - `PATCH /api/v1/competitions/{slug}`
   - `POST /api/v1/competitions/{slug}/datasets`
+  - `GET /api/v1/competitions/{slug}/scoring-config`
+  - `PUT /api/v1/competitions/{slug}/scoring-config`
 
 ### Current response-shape reality
 
