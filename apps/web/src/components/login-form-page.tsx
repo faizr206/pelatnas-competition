@@ -26,8 +26,8 @@ export function LoginFormPage({ nextPath }: LoginFormPageProps) {
     startTransition(() => {
       void (async () => {
         try {
-          await login(email, password);
-          router.push(nextPath ?? "/competitions");
+          const user = await login(email, password);
+          router.push(user.must_change_password ? "/profile" : (nextPath ?? "/competitions"));
           router.refresh();
         } catch (loginError) {
           setError(

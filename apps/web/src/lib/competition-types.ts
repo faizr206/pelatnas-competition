@@ -4,7 +4,10 @@ export type User = {
   display_name: string;
   status: string;
   is_admin: boolean;
+  must_change_password: boolean;
 };
+
+export type AdminManagedUser = User;
 
 export type CompetitionPhase = {
   id: string;

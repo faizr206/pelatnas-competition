@@ -16,6 +16,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         request.session.clear()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is invalid.")
 
+    if user.status != "active":
+        request.session.clear()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account is not active.",
+        )
+
     return user
 
 

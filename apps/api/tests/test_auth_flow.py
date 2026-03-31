@@ -5,10 +5,12 @@ def test_login_me_logout_flow(client) -> None:
     )
     assert response.status_code == 200
     assert response.json()["email"] == "admin@example.com"
+    assert response.json()["must_change_password"] is False
 
     response = client.get("/api/v1/auth/me")
     assert response.status_code == 200
     assert response.json()["display_name"] == "Phase Zero Admin"
+    assert response.json()["must_change_password"] is False
 
     response = client.post("/api/v1/auth/logout")
     assert response.status_code == 204

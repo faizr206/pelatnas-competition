@@ -1,19 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState, useTransition } from "react";
 
 import { SessionActions } from "@/components/session-actions";
 import { SiteHeader } from "@/components/site-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getOptionalSession } from "@/lib/api";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { changePassword, getOptionalSession } from "@/lib/api";
 import type { User } from "@/lib/competition-types";
 
 export function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     let active = true;
@@ -52,6 +59,30 @@ export function ProfilePage() {
       active = false;
     };
   }, []);
+
+  function handlePasswordChange(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordError(null);
+    setPasswordMessage(null);
+
+    startTransition(() => {
+      void (async () => {
+        try {
+          const updatedUser = await changePassword(currentPassword, newPassword);
+          setUser(updatedUser);
+          setCurrentPassword("");
+          setNewPassword("");
+          setPasswordMessage("Password updated successfully.");
+        } catch (changePasswordError) {
+          setPasswordError(
+            changePasswordError instanceof Error
+              ? changePasswordError.message
+              : "Failed to update the password.",
+          );
+        }
+      })();
+    });
+  }
 
   return (
     <div className="min-h-screen bg-white text-slate-950">
@@ -122,7 +153,18 @@ export function ProfilePage() {
                 >
                   {user.status}
                 </Badge>
+                {user.must_change_password ? (
+                  <Badge className="border-0 bg-[#fff4d6] px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-[#8c5a00]">
+                    Password change required
+                  </Badge>
+                ) : null}
               </div>
+
+              {user.must_change_password ? (
+                <div className="mt-6 rounded-2xl border border-[#f2dfaf] bg-[#fff9ea] px-5 py-4 text-sm text-[#7a5b10]">
+                  This account is still using a temporary password. Change it before continuing.
+                </div>
+              ) : null}
 
               <dl className="mt-8 grid gap-6 md:grid-cols-2">
                 <div className="rounded-2xl border border-[#efefef] bg-[#fafafa] px-4 py-4">
@@ -142,6 +184,47 @@ export function ProfilePage() {
                   </dd>
                 </div>
               </dl>
+
+              <section className="mt-8 rounded-2xl border border-[#efefef] bg-[#fafafa] p-5">
+                <div className="max-w-xl">
+                  <h3 className="text-base font-semibold text-black">Change Password</h3>
+                  <p className="mt-2 text-sm text-[#6f6f6f]">
+                    Use your current password once, then set a new private password for this account.
+                  </p>
+                </div>
+
+                <form className="mt-5 grid gap-4 md:grid-cols-2" onSubmit={handlePasswordChange}>
+                  <div className="space-y-2">
+                    <Label htmlFor="current-password">Current password</Label>
+                    <Input
+                      id="current-password"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-password">New password</Label>
+                    <Input
+                      id="new-password"
+                      type="password"
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex flex-wrap items-center gap-3">
+                    <Button className="h-10 rounded-full bg-[#1f1f1f] px-5 text-xs font-semibold hover:bg-[#111111]">
+                      {isPending ? "Updating..." : "Update password"}
+                    </Button>
+                    {passwordMessage ? (
+                      <p className="text-sm text-[#2d6a4f]">{passwordMessage}</p>
+                    ) : null}
+                    {passwordError ? (
+                      <p className="text-sm text-[#b14d4d]">{passwordError}</p>
+                    ) : null}
+                  </div>
+                </form>
+              </section>
 
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button

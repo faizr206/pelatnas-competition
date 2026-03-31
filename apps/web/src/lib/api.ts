@@ -1,4 +1,5 @@
 import type {
+  AdminManagedUser,
   Competition,
   CompetitionCreatePayload,
   CompetitionUpdatePayload,
@@ -141,6 +142,83 @@ export async function logout() {
   });
 
   return expectJson<null>(response);
+}
+
+export async function changePassword(currentPassword: string, newPassword: string) {
+  const response = await fetch(`${apiBaseUrl}/auth/change-password`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  });
+
+  return expectJson<User>(response);
+}
+
+export async function getAdminUsers() {
+  const response = await fetch(`${apiBaseUrl}/admin/users`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  return expectJson<AdminManagedUser[]>(response);
+}
+
+export async function createAdminUser(payload: {
+  email: string;
+  display_name: string;
+  default_password: string;
+  is_admin: boolean;
+  status: string;
+}) {
+  const response = await fetch(`${apiBaseUrl}/admin/users`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return expectJson<AdminManagedUser>(response);
+}
+
+export async function updateAdminUser(
+  userId: string,
+  payload: {
+    display_name: string;
+    is_admin: boolean;
+    status: string;
+  },
+) {
+  const response = await fetch(`${apiBaseUrl}/admin/users/${userId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return expectJson<AdminManagedUser>(response);
+}
+
+export async function resetAdminUserPassword(userId: string, defaultPassword: string) {
+  const response = await fetch(`${apiBaseUrl}/admin/users/${userId}/reset-password`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ default_password: defaultPassword }),
+  });
+
+  return expectJson<AdminManagedUser>(response);
 }
 
 export async function createCompetition(payload: CompetitionCreatePayload) {

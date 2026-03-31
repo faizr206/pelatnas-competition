@@ -1,9 +1,14 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
 
 
 class UserResponse(BaseModel):
@@ -14,3 +19,4 @@ class UserResponse(BaseModel):
     display_name: str
     status: str
     is_admin: bool
+    must_change_password: bool

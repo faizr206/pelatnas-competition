@@ -15,6 +15,7 @@ from apps.api.app.routers import (
     leaderboard,
     scoring,
     submissions,
+    users,
 )
 from apps.api.app.services.bootstrap import bootstrap_local_state
 from packages.observability.logging import configure_logging
@@ -66,3 +67,4 @@ app.include_router(submissions.router, prefix="/api/v1")
 app.include_router(jobs.router, prefix="/api/v1")
 app.include_router(leaderboard.router, prefix="/api/v1")
 app.include_router(scoring.router, prefix="/api/v1")
+app.include_router(users.router, prefix="/api/v1")
