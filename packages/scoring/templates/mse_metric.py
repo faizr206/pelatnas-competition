@@ -10,7 +10,10 @@ METRIC_NAME = "mse"
 SCORING_DIRECTION = "min"
 
 
-def score_submission(solution_rows, submission_rows):
+def score_submission(
+    solution_rows: list[dict[str, Any]],
+    submission_rows: list[dict[str, Any]],
+) -> float:
     total_error = 0.0
 
     for solution_row, submission_row in zip(solution_rows, submission_rows, strict=False):
@@ -19,3 +22,6 @@ def score_submission(solution_rows, submission_rows):
         total_error += (prediction - target) ** 2
 
     return total_error / len(solution_rows)
+
+
+from typing import Any
