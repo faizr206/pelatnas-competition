@@ -116,3 +116,51 @@ def test_participant_submission_can_be_processed_and_ranked(client, monkeypatch)
     assert len(leaderboard_payload) == 1
     assert leaderboard_payload[0]["rank"] == 1
     assert leaderboard_payload[0]["score_value"] == 3.0
+
+
+def test_submission_job_is_committed_before_worker_can_process_it(client, monkeypatch) -> None:
+    _login_admin(client)
+
+    competition_response = client.post(
+        "/api/v1/competitions",
+        json={
+            "slug": "commit-safe-comp",
+            "title": "Commit Safe Competition",
+            "description": "Ensures jobs are committed before enqueue.",
+            "visibility": "public",
+            "status": "active",
+            "scoring_metric": "row_count",
+            "scoring_direction": "max",
+            "phase": {
+                "name": "main",
+                "starts_at": "2026-01-01T00:00:00Z",
+                "ends_at": "2026-12-31T00:00:00Z",
+                "submission_limit_per_day": 5,
+                "scoring_version": "v1",
+                "rules_version": "v1",
+            },
+        },
+    )
+    assert competition_response.status_code == 201
+
+    from apps.worker.worker import queue as worker_queue
+
+    def run_inline(*, args):
+        process_submission_job(args[0])
+        return DummyAsyncResult()
+
+    monkeypatch.setattr(worker_queue.process_submission_task, "apply_async", run_inline)
+
+    submission_response = client.post(
+        "/api/v1/competitions/commit-safe-comp/submissions",
+        data={"submission_type": "csv"},
+        files={
+            "source_file": (
+                "submission.csv",
+                BytesIO(b"prediction\n0.1\n0.2\n"),
+                "text/csv",
+            )
+        },
+    )
+    assert submission_response.status_code == 202
+    assert submission_response.json()["status"] == "completed"

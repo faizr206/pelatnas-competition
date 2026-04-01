@@ -23,7 +23,7 @@ from apps.api.app.schemas.submissions import (
     SubmissionArtifactResponse,
     SubmissionResponse,
 )
-from apps.api.app.services.jobs import create_and_enqueue_submission_job
+from apps.api.app.services.jobs import create_submission_job, enqueue_submission_job
 from packages.core.constants import SubmissionType
 from packages.db.models import Submission, SubmissionArtifact, User
 from packages.storage.service import save_upload
@@ -108,7 +108,10 @@ async def submit(
         source_checksum=stored_file.checksum,
         source_size_bytes=stored_file.size_bytes,
     )
-    job = create_and_enqueue_submission_job(db, submission_id=submission.id)
+    job = create_submission_job(db, submission_id=submission.id)
+    db.commit()
+    db.refresh(job)
+    job = enqueue_submission_job(db, job_id=job.id)
     db.commit()
     db.refresh(job)
     return JobResponse.model_validate(job)
