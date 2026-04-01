@@ -62,6 +62,7 @@ This repo implements the locked Phase 0 and Phase 1 decisions from [guidelines/P
 ## Docs
 
 - Secrets and backups: [docs/operations/SECRETS_AND_BACKUPS.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/operations/SECRETS_AND_BACKUPS.md)
+- Remote worker setup: [docs/operations/REMOTE_WORKER_SETUP.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/operations/REMOTE_WORKER_SETUP.md)
     ccp_alphas = ccp_alphas_full
 - Sandbox policy: [docs/security/SANDBOX_POLICY.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/security/SANDBOX_POLICY.md)
 - Phase 0 notes: [docs/architecture/PHASE_0_IMPLEMENTATION.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/architecture/PHASE_0_IMPLEMENTATION.md)
