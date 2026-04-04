@@ -23,9 +23,7 @@ def list_workers(
 ) -> list[AdminWorkerResponse]:
     jobs = list(
         db.scalars(
-            select(Job)
-            .where(Job.worker_id.is_not(None))
-            .order_by(Job.created_at.desc())
+            select(Job).where(Job.worker_id.is_not(None)).order_by(Job.created_at.desc())
         ).all()
     )
 

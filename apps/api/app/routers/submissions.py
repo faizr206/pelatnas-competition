@@ -67,12 +67,18 @@ async def submit(
 
     if submission_type not in {SubmissionType.CSV.value, SubmissionType.NOTEBOOK.value}:
         raise HTTPException(status_code=400, detail="Submission type must be csv or notebook.")
-    if competition.submission_mode == "prediction_file" and submission_type != SubmissionType.CSV.value:
+    if (
+        competition.submission_mode == "prediction_file"
+        and submission_type != SubmissionType.CSV.value
+    ):
         raise HTTPException(
             status_code=400,
             detail="This competition only accepts submission.csv prediction files.",
         )
-    if competition.submission_mode == "code_submission" and submission_type != SubmissionType.NOTEBOOK.value:
+    if (
+        competition.submission_mode == "code_submission"
+        and submission_type != SubmissionType.NOTEBOOK.value
+    ):
         raise HTTPException(
             status_code=400,
             detail="This competition only accepts notebook code submissions.",

@@ -27,13 +27,13 @@ def authenticate_user(db: Session, *, email: str, password: str) -> User | None:
 def validate_new_password(*, new_password: str, current_password: str | None = None) -> None:
     if len(new_password) < 8:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="New password must be at least 8 characters long.",
         )
 
     if current_password is not None and new_password == current_password:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="New password must be different from the current password.",
         )
 

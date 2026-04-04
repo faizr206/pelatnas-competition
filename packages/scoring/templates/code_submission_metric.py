@@ -1,9 +1,9 @@
 """Example template for notebook-based code submissions."""
 
+from participant_submission import predict
+
 METRIC_NAME = "code_submission_score"
 SCORING_DIRECTION = "max"
-
-from participant_submission import predict
 
 
 def score_submission():

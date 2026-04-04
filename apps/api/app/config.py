@@ -30,9 +30,7 @@ class Settings(BaseSettings):
     def cors_allowed_origins(self) -> list[str]:
         raw = self.web_origins or self.web_origin
         return [
-            origin.rstrip("/")
-            for origin in (item.strip() for item in raw.split(","))
-            if origin
+            origin.rstrip("/") for origin in (item.strip() for item in raw.split(",")) if origin
         ]
 
 

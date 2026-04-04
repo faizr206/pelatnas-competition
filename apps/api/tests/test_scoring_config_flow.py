@@ -1,5 +1,5 @@
-from io import BytesIO
 import json
+from io import BytesIO
 
 from apps.worker.worker.job_handlers.submission_pipeline import process_submission_job
 
@@ -275,9 +275,7 @@ def score_submission():
     assert submission_payload["latest_score"]["metric_name"] == "code_submission_score"
     assert submission_payload["latest_score"]["score_value"] == 2.0
 
-    artifacts_response = client.get(
-        f"/api/v1/submissions/{submission_payload['id']}/artifacts"
-    )
+    artifacts_response = client.get(f"/api/v1/submissions/{submission_payload['id']}/artifacts")
     assert artifacts_response.status_code == 200
     artifact_types = {item["artifact_type"] for item in artifacts_response.json()}
     assert "participant_submission.py" in artifact_types
