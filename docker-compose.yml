@@ -113,14 +113,18 @@ services:
           garage -c /etc/garage/garage.toml status
           exit 1
         fi
-        garage -c /etc/garage/garage.toml layout assign -z dc1 -c "$${GARAGE_CAPACITY:-20G}" "$$node_id" || true
-        next_layout_version=$$(
-          garage -c /etc/garage/garage.toml layout show \
-            | sed -n 's/.*[Ss]taged.*[Vv]ersion[^0-9]*\([0-9][0-9]*\).*/\1/p' \
-            | head -n 1
-        )
-        if [ -n "$$next_layout_version" ]; then
-          garage -c /etc/garage/garage.toml layout apply --version "$$next_layout_version" || true
+        if ! garage -c /etc/garage/garage.toml layout assign -z dc1 -c "$${GARAGE_CAPACITY:-20G}" "$$node_id" >/tmp/garage-layout-assign.txt 2>&1; then
+          if ! grep -q "Role changes are staged but not yet committed" /tmp/garage-layout-assign.txt; then
+            cat /tmp/garage-layout-assign.txt
+            exit 1
+          fi
+        fi
+        if ! garage -c /etc/garage/garage.toml layout apply --version 1 >/tmp/garage-layout-apply.txt 2>&1; then
+          if ! grep -q "Invalid new layout version" /tmp/garage-layout-apply.txt; then
+            cat /tmp/garage-layout-apply.txt
+            garage -c /etc/garage/garage.toml layout show || true
+            exit 1
+          fi
         fi
         tries=0
         until garage -c /etc/garage/garage.toml bucket list >/tmp/garage-layout-ready.txt 2>&1; do
