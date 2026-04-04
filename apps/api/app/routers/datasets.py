@@ -13,7 +13,8 @@ from apps.api.app.repositories.datasets import (
 )
 from apps.api.app.schemas.datasets import DatasetResponse
 from packages.db.models import Dataset, User
-from packages.storage.service import get_object, save_upload
+from packages.security.upload_validation import validate_dataset_upload, validate_upload_size
+from packages.storage.service import build_attachment_content_disposition, get_object, save_upload
 
 router = APIRouter(tags=["datasets"])
 
@@ -51,6 +52,13 @@ async def upload_dataset(
 
     version = get_next_dataset_version(db, competition_id=competition.id)
     settings = get_settings()
+    validate_upload_size(
+        dataset_file,
+        max_bytes=settings.max_dataset_upload_bytes,
+        label="dataset file",
+    )
+    validate_dataset_upload(dataset_file)
+
     stored_file = save_upload(
         settings.local_storage_root,
         category="datasets",
@@ -92,5 +100,10 @@ def download_dataset(
     return Response(
         content=stored.body,
         media_type=dataset.content_type,
-        headers={"Content-Disposition": f'attachment; filename="{dataset.original_filename}"'},
+        headers={
+            "Content-Disposition": build_attachment_content_disposition(
+                dataset.original_filename,
+                fallback="dataset.bin",
+            )
+        },
     )

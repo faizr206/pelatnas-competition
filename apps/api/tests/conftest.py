@@ -7,6 +7,7 @@ from apps.api.app.config import get_settings
 from packages.db import models  # noqa: F401
 from packages.db.base import Base
 from packages.db.session import get_engine
+from packages.security.login_rate_limit import login_rate_limiter
 from packages.storage.service import get_storage
 
 
@@ -31,6 +32,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     get_settings.cache_clear()
     get_engine.cache_clear()
     get_storage.cache_clear()
+    login_rate_limiter.reset()
 
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
@@ -44,3 +46,4 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     get_settings.cache_clear()
     get_engine.cache_clear()
     get_storage.cache_clear()
+    login_rate_limiter.reset()

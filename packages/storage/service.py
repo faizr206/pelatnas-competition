@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import mimetypes
+import re
 import tempfile
 import time
 from dataclasses import dataclass
@@ -31,6 +32,9 @@ class StorageObject:
     body: bytes
     content_type: str
     size_bytes: int
+
+
+_UNSAFE_DOWNLOAD_FILENAME_RE = re.compile(r'[\r\n"]+')
 
 
 class StorageBackend:
@@ -409,6 +413,14 @@ class MemoryStorageBackend(StorageBackend):
 def _build_object_key(*, category: str, competition_slug: str, filename: str) -> str:
     safe_name = filename.replace("/", "_").replace("\\", "_")
     return f"{category}/{competition_slug}/{uuid4()}-{safe_name}"
+
+
+def build_attachment_content_disposition(filename: str, *, fallback: str = "download.bin") -> str:
+    safe_name = filename.replace("/", "_").replace("\\", "_")
+    safe_name = _UNSAFE_DOWNLOAD_FILENAME_RE.sub("", safe_name).strip()
+    if not safe_name:
+        safe_name = fallback
+    return f'attachment; filename="{safe_name}"'
 
 
 @lru_cache

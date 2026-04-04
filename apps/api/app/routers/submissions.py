@@ -27,6 +27,11 @@ from apps.api.app.services.jobs import create_submission_job, enqueue_submission
 from packages.core.constants import SubmissionType
 from packages.core.time import utcnow
 from packages.db.models import CompetitionPhase, Submission, SubmissionArtifact, User
+from packages.security.upload_validation import (
+    validate_csv_upload,
+    validate_notebook_upload,
+    validate_upload_size,
+)
 from packages.storage.service import get_object, save_upload
 
 router = APIRouter(tags=["submissions"])
@@ -114,6 +119,16 @@ async def submit(
         )
 
     settings = get_settings()
+    validate_upload_size(
+        source_file,
+        max_bytes=settings.max_submission_upload_bytes,
+        label="submission file",
+    )
+    if submission_type == SubmissionType.CSV.value:
+        validate_csv_upload(source_file, label="submission file")
+    else:
+        validate_notebook_upload(source_file, label="submission file")
+
     stored_file = save_upload(
         settings.local_storage_root,
         category="submissions",

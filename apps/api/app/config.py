@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     session_secret: str = "change-me"
     session_cookie_name: str = "competition_session"
     session_max_age_seconds: int = 28800
+    session_https_only: bool = False
     web_origin: str = "http://localhost:3000"
     web_origins: str | None = None
     local_storage_root: str = "./data/storage"
@@ -30,6 +31,11 @@ class Settings(BaseSettings):
         "Baseline competition used to verify auth, queue, and worker wiring."
     )
     worker_id: str = "worker-local"
+    login_rate_limit_window_seconds: int = 300
+    login_rate_limit_max_attempts: int = 10
+    max_dataset_upload_bytes: int = 104857600
+    max_submission_upload_bytes: int = 52428800
+    max_solution_upload_bytes: int = 10485760
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -185,8 +185,8 @@ export function PhaseOneDashboard() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("admin1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [datasetName, setDatasetName] = useState("starter-dataset");
   const [datasetFile, setDatasetFile] = useState<File | null>(null);
   const [submissionType, setSubmissionType] = useState("csv");

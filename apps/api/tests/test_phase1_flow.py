@@ -3,6 +3,7 @@ from io import BytesIO
 
 from sqlalchemy import select
 
+from apps.api.app.config import get_settings
 from apps.worker.worker.job_handlers.submission_pipeline import process_submission_job
 from packages.db.models import Competition, CompetitionPhase
 from packages.db.session import session_scope
@@ -58,6 +59,132 @@ def test_admin_can_create_competition_and_upload_dataset(client) -> None:
     history_response = client.get("/api/v1/competitions/phase1-comp/datasets")
     assert history_response.status_code == 200
     assert len(history_response.json()) == 1
+
+
+def test_dataset_upload_rejects_disallowed_extension(client) -> None:
+    _login_admin(client)
+
+    competition_response = client.post(
+        "/api/v1/competitions",
+        json={
+            "slug": "dataset-guard-comp",
+            "title": "Dataset Guard Competition",
+            "description": "Dataset validation test",
+            "visibility": "public",
+            "status": "active",
+            "scoring_metric": "row_count",
+            "scoring_direction": "max",
+            "phase": {
+                "name": "main",
+                "starts_at": "2026-01-01T00:00:00Z",
+                "ends_at": "2026-12-31T00:00:00Z",
+                "submission_limit_per_day": 5,
+                "scoring_version": "v1",
+                "rules_version": "v1",
+            },
+        },
+    )
+    assert competition_response.status_code == 201
+
+    dataset_response = client.post(
+        "/api/v1/competitions/dataset-guard-comp/datasets",
+        data={"name": "bad-dataset"},
+        files={
+            "dataset_file": ("dataset.exe", BytesIO(b"not allowed"), "application/octet-stream")
+        },
+    )
+    assert dataset_response.status_code == 400
+
+
+def test_submission_upload_rejects_oversized_payload(client, monkeypatch) -> None:
+    monkeypatch.setenv("MAX_SUBMISSION_UPLOAD_BYTES", "8")
+    get_settings.cache_clear()
+    _login_admin(client)
+
+    competition_response = client.post(
+        "/api/v1/competitions",
+        json={
+            "slug": "submission-size-comp",
+            "title": "Submission Size Competition",
+            "description": "Submission size validation test",
+            "visibility": "public",
+            "status": "active",
+            "scoring_metric": "row_count",
+            "scoring_direction": "max",
+            "phase": {
+                "name": "main",
+                "starts_at": "2026-01-01T00:00:00Z",
+                "ends_at": "2026-12-31T00:00:00Z",
+                "submission_limit_per_day": 5,
+                "scoring_version": "v1",
+                "rules_version": "v1",
+            },
+        },
+    )
+    assert competition_response.status_code == 201
+
+    submission_response = client.post(
+        "/api/v1/competitions/submission-size-comp/submissions",
+        data={"submission_type": "csv"},
+        files={
+            "source_file": (
+                "submission.csv",
+                BytesIO(b"prediction\n0.1\n"),
+                "text/csv",
+            )
+        },
+    )
+    assert submission_response.status_code == 413
+
+
+def test_notebook_submission_rejects_wrong_extension(client, monkeypatch) -> None:
+    _login_admin(client)
+
+    competition_response = client.post(
+        "/api/v1/competitions",
+        json={
+            "slug": "notebook-guard-comp",
+            "title": "Notebook Guard Competition",
+            "description": "Notebook validation test",
+            "visibility": "public",
+            "status": "active",
+            "submission_mode": "code_submission",
+            "allow_csv_submissions": False,
+            "allow_notebook_submissions": True,
+            "scoring_metric": "row_count",
+            "scoring_direction": "max",
+            "phase": {
+                "name": "main",
+                "starts_at": "2026-01-01T00:00:00Z",
+                "ends_at": "2026-12-31T00:00:00Z",
+                "submission_limit_per_day": 5,
+                "scoring_version": "v1",
+                "rules_version": "v1",
+            },
+        },
+    )
+    assert competition_response.status_code == 201
+
+    from apps.worker.worker import queue as worker_queue
+
+    monkeypatch.setattr(
+        worker_queue.process_submission_task,
+        "apply_async",
+        lambda args: DummyAsyncResult(),
+    )
+
+    submission_response = client.post(
+        "/api/v1/competitions/notebook-guard-comp/submissions",
+        data={"submission_type": "notebook"},
+        files={
+            "source_file": (
+                "analysis.py",
+                BytesIO(b"print('hello')"),
+                "application/json",
+            )
+        },
+    )
+    assert submission_response.status_code == 400
 
 
 def test_participant_submission_can_be_processed_and_ranked(client, monkeypatch) -> None:

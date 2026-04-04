@@ -40,7 +40,7 @@ app.add_middleware(
     session_cookie=settings.session_cookie_name,
     max_age=settings.session_max_age_seconds,
     same_site="lax",
-    https_only=False,
+    https_only=settings.session_https_only,
 )
 app.add_middleware(
     CORSMiddleware,

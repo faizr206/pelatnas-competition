@@ -22,7 +22,14 @@ from packages.scoring.service import (
     validate_metric_script,
     validate_solution_csv,
 )
-from packages.storage.service import get_object, get_object_text, save_text_file, save_upload
+from packages.security.upload_validation import validate_csv_upload, validate_upload_size
+from packages.storage.service import (
+    build_attachment_content_disposition,
+    get_object,
+    get_object_text,
+    save_text_file,
+    save_upload,
+)
 
 router = APIRouter(tags=["scoring"])
 
@@ -95,7 +102,12 @@ def get_solution_file(
     return Response(
         content=stored.body,
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{competition.solution_filename}"'},
+        headers={
+            "Content-Disposition": build_attachment_content_disposition(
+                competition.solution_filename,
+                fallback="solution.csv",
+            )
+        },
     )
 
 
@@ -197,6 +209,12 @@ async def update_scoring_config(
     )
 
     if solution_file is not None:
+        validate_upload_size(
+            solution_file,
+            max_bytes=settings.max_solution_upload_bytes,
+            label="solution file",
+        )
+        validate_csv_upload(solution_file, label="solution file")
         with tempfile.NamedTemporaryFile(suffix=".csv") as solution_handle:
             solution_file.file.seek(0)
             solution_handle.write(solution_file.file.read())
