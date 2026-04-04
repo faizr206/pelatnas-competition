@@ -6,7 +6,7 @@ If the host does not have an NVIDIA GPU, do not use the GPU Compose override. Ru
 
 ## What happens on CPU-only hosts
 
-- The worker is safe on CPU-only hosts when you run the normal Compose file without [`docker-compose.gpu.yml`](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docker-compose.gpu.yml).
+- The worker is safe on CPU-only hosts when you run the normal Compose file without [`docker-compose.gpu.yml`](../../docker-compose.gpu.yml).
 - In that mode, the worker starts normally and the admin panel will show `GPU available: no`.
 - If you do use the GPU override on a host without a working NVIDIA GPU runtime, Docker will typically fail to start the worker container. This is an expected host/runtime failure, not an application bug.
 

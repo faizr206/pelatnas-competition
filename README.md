@@ -159,7 +159,7 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build worker
 
 When the worker heartbeats successfully, the admin worker panel will show `GPU available: yes`.
 
-GPU runtime setup instructions are documented in [docs/operations/NVIDIA_CONTAINER_TOOLKIT.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/operations/NVIDIA_CONTAINER_TOOLKIT.md).
+GPU runtime setup instructions are documented in [docs/operations/NVIDIA_CONTAINER_TOOLKIT.md](docs/operations/NVIDIA_CONTAINER_TOOLKIT.md).
 
 ## Local Development
 
@@ -205,11 +205,11 @@ npm run dev
 
 ## Operations And Reference Docs
 
-- Remote worker deployment: [docs/operations/REMOTE_WORKER_SETUP.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/operations/REMOTE_WORKER_SETUP.md)
-- NVIDIA Container Toolkit setup: [docs/operations/NVIDIA_CONTAINER_TOOLKIT.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/operations/NVIDIA_CONTAINER_TOOLKIT.md)
-- Secrets and backup guidance: [docs/operations/SECRETS_AND_BACKUPS.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/operations/SECRETS_AND_BACKUPS.md)
-- Retention policy: [docs/operations/RETENTION_POLICY.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/operations/RETENTION_POLICY.md)
-- Sandbox and worker execution policy: [docs/security/SANDBOX_POLICY.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/security/SANDBOX_POLICY.md)
+- Remote worker deployment: [docs/operations/REMOTE_WORKER_SETUP.md](docs/operations/REMOTE_WORKER_SETUP.md)
+- NVIDIA Container Toolkit setup: [docs/operations/NVIDIA_CONTAINER_TOOLKIT.md](docs/operations/NVIDIA_CONTAINER_TOOLKIT.md)
+- Secrets and backup guidance: [docs/operations/SECRETS_AND_BACKUPS.md](docs/operations/SECRETS_AND_BACKUPS.md)
+- Retention policy: [docs/operations/RETENTION_POLICY.md](docs/operations/RETENTION_POLICY.md)
+- Sandbox and worker execution policy: [docs/security/SANDBOX_POLICY.md](docs/security/SANDBOX_POLICY.md)
 
 ## Testing
 
