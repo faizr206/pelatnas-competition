@@ -214,7 +214,6 @@ services:
       export GARAGE_ACCESS_KEY=$$(grep '^GARAGE_ACCESS_KEY=' /run/garage/env | head -n 1 | cut -d= -f2-) &&
       export GARAGE_SECRET_KEY=$$(grep '^GARAGE_SECRET_KEY=' /run/garage/env | head -n 1 | cut -d= -f2-);
       fi &&
-      alembic -c apps/api/alembic.ini upgrade head &&
       celery -A apps.worker.worker.queue:celery_app worker --loglevel=info --concurrency=$${WORKER_CONCURRENCY:-2}"
 
   web:
