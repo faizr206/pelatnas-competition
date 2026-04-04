@@ -114,11 +114,30 @@ services:
           exit 1
         fi
         garage -c /etc/garage/garage.toml layout assign -z dc1 -c "$${GARAGE_CAPACITY:-20G}" "$$node_id" || true
-        next_layout_version=$$(garage -c /etc/garage/garage.toml layout show | awk '/version/ {print $$2}' | tail -n 1)
+        next_layout_version=$$(
+          garage -c /etc/garage/garage.toml layout show \
+            | sed -n 's/.*[Ss]taged.*[Vv]ersion[^0-9]*\([0-9][0-9]*\).*/\1/p' \
+            | head -n 1
+        )
         if [ -n "$$next_layout_version" ]; then
           garage -c /etc/garage/garage.toml layout apply --version "$$next_layout_version" || true
         fi
-        garage -c /etc/garage/garage.toml bucket create "$${GARAGE_BUCKET}" || true
+        tries=0
+        until garage -c /etc/garage/garage.toml bucket create "$${GARAGE_BUCKET}" >/tmp/garage-bucket.txt 2>&1; do
+          if grep -q "Bucket already exists" /tmp/garage-bucket.txt; then
+            break
+          fi
+          if ! grep -q "Layout not ready" /tmp/garage-bucket.txt; then
+            cat /tmp/garage-bucket.txt
+            exit 1
+          fi
+          tries=$$((tries + 1))
+          if [ "$$tries" -ge 30 ]; then
+            cat /tmp/garage-bucket.txt
+            exit 1
+          fi
+          sleep 2
+        done
         key_output=$$(garage -c /etc/garage/garage.toml key create "$${GARAGE_APP_KEY_NAME:-competition-app}")
         access_key=$$(printf "%s\n" "$$key_output" | sed -n 's/^Key ID: //p' | head -n 1 | xargs)
         secret_key=$$(printf "%s\n" "$$key_output" | sed -n 's/^Secret key: //p' | head -n 1 | xargs)
