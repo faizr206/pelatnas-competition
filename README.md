@@ -8,7 +8,7 @@ Phase 1 MVP for a Kaggle-like competition platform.
 - API: FastAPI
 - Database: PostgreSQL
 - Queue: Redis + Celery
-- Storage: local disk
+- Storage: Garage
 
 ## Repository layout
 
@@ -40,10 +40,13 @@ This repo implements the locked Phase 0 and Phase 1 decisions from [guidelines/P
 ## Quick start
 
 1. Copy `.env.example` to `.env`.
-2. Run `docker compose up --build`.
-3. Open `http://localhost:3000`.
-4. Sign in with the credentials from `.env`.
-5. Use the dashboard to create a competition, upload a dataset version, submit a CSV or notebook file, and watch the queued job complete.
+2. Replace `GARAGE_RPC_SECRET` with a real 64-hex-character value, for example `openssl rand -hex 32`.
+3. Leave `GARAGE_REPLICATION_FACTOR=1` unless you are running a multi-node Garage cluster.
+4. Run `docker compose up --build`.
+5. Wait for `data/garage/env` to be created by the Garage bootstrap service.
+6. Open `http://localhost:3000`.
+7. Sign in with the credentials from `.env`.
+8. Use the dashboard to create a competition, upload a dataset version, submit a CSV or notebook file, and watch the queued job complete.
 
 ## Local commands
 
@@ -63,7 +66,6 @@ This repo implements the locked Phase 0 and Phase 1 decisions from [guidelines/P
 
 - Secrets and backups: [docs/operations/SECRETS_AND_BACKUPS.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/operations/SECRETS_AND_BACKUPS.md)
 - Remote worker setup: [docs/operations/REMOTE_WORKER_SETUP.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/operations/REMOTE_WORKER_SETUP.md)
-    ccp_alphas = ccp_alphas_full
 - Sandbox policy: [docs/security/SANDBOX_POLICY.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/security/SANDBOX_POLICY.md)
 - Phase 0 notes: [docs/architecture/PHASE_0_IMPLEMENTATION.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/architecture/PHASE_0_IMPLEMENTATION.md)
 - Phase 1 notes: [docs/architecture/PHASE_1_IMPLEMENTATION.md](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docs/architecture/PHASE_1_IMPLEMENTATION.md)

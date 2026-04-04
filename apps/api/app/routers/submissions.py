@@ -1,7 +1,5 @@
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -26,7 +24,7 @@ from apps.api.app.schemas.submissions import (
 from apps.api.app.services.jobs import create_submission_job, enqueue_submission_job
 from packages.core.constants import SubmissionType
 from packages.db.models import Submission, SubmissionArtifact, User
-from packages.storage.service import save_upload
+from packages.storage.service import get_object, save_upload
 
 router = APIRouter(tags=["submissions"])
 
@@ -171,7 +169,7 @@ def get_submission_logs(
     submission_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> FileResponse:
+) -> Response:
     _ = _get_visible_submission(db=db, submission_id=submission_id, current_user=current_user)
     artifact = db.scalar(
         select(SubmissionArtifact)
@@ -181,7 +179,8 @@ def get_submission_logs(
     )
     if artifact is None:
         raise HTTPException(status_code=404, detail="No log artifact found.")
-    return FileResponse(Path(artifact.storage_path))
+    stored = get_object(artifact.storage_path)
+    return Response(content=stored.body, media_type="text/plain; charset=utf-8")
 
 
 def _get_visible_submission(

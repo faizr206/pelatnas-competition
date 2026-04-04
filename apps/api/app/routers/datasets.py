@@ -1,7 +1,5 @@
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from apps.api.app.config import get_settings
@@ -15,7 +13,7 @@ from apps.api.app.repositories.datasets import (
 )
 from apps.api.app.schemas.datasets import DatasetResponse
 from packages.db.models import Dataset, User
-from packages.storage.service import save_upload
+from packages.storage.service import get_object, save_upload
 
 router = APIRouter(tags=["datasets"])
 
@@ -86,8 +84,13 @@ def download_dataset(
     dataset_id: str,
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
-) -> FileResponse:
+) -> Response:
     dataset = get_dataset_by_id(db, dataset_id)
     if dataset is None:
         raise HTTPException(status_code=404, detail="Dataset not found.")
-    return FileResponse(Path(dataset.storage_path), filename=dataset.original_filename)
+    stored = get_object(dataset.storage_path)
+    return Response(
+        content=stored.body,
+        media_type=dataset.content_type,
+        headers={"Content-Disposition": f'attachment; filename="{dataset.original_filename}"'},
+    )

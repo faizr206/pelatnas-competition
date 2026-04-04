@@ -27,6 +27,108 @@ services:
       timeout: 5s
       retries: 10
 
+  garage-config:
+    image: alpine:3.21
+    env_file:
+      - .env
+    volumes:
+      - garage_config:/etc/garage
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        printf '%s\n' \
+          'metadata_dir = "/var/lib/garage/meta"' \
+          'data_dir = "/var/lib/garage/data"' \
+          'db_engine = "sqlite"' \
+          "replication_factor = ${GARAGE_REPLICATION_FACTOR}" \
+          '' \
+          'rpc_bind_addr = "[::]:3901"' \
+          'rpc_public_addr = "garage:3901"' \
+          "rpc_secret = \"${GARAGE_RPC_SECRET}\"" \
+          '' \
+          '[s3_api]' \
+          "s3_region = \"${GARAGE_REGION}\"" \
+          'api_bind_addr = "[::]:3900"' \
+          'root_domain = ".s3.garage.localhost"' \
+          '' \
+          '[admin]' \
+          'api_bind_addr = "[::]:3903"' \
+          "admin_token = \"${GARAGE_ADMIN_TOKEN}\"" \
+          > /etc/garage/garage.toml
+
+  garage:
+    image: dxflrs/garage:v2.2.0
+    depends_on:
+      garage-config:
+        condition: service_completed_successfully
+    entrypoint:
+      - /garage
+    ports:
+      - "127.0.0.1:3900:3900"
+      - "${TAILSCALE_BIND_IP}:3900:3900"
+      - "127.0.0.1:3903:3903"
+      - "${TAILSCALE_BIND_IP}:3903:3903"
+    command: ["-c", "/etc/garage/garage.toml", "server"]
+    volumes:
+      - garage_config:/etc/garage:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+
+  garage-bootstrap:
+    build:
+      context: .
+      dockerfile: infra/docker/garage-tools.Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      garage:
+        condition: service_started
+    volumes:
+      - garage_config:/etc/garage:ro
+      - garage_meta:/var/lib/garage/meta
+      - ./data/garage:/run/garage
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        mkdir -p /run/garage
+        if [ -f /run/garage/env ]; then
+          exit 0
+        fi
+        garage -c /etc/garage/garage.toml status >/tmp/garage-status.txt 2>&1 || true
+        tries=0
+        while ! grep -q "HEALTHY" /tmp/garage-status.txt; do
+          tries=$$((tries + 1))
+          if [ "$$tries" -ge 30 ]; then
+            cat /tmp/garage-status.txt
+            exit 1
+          fi
+          sleep 2
+          garage -c /etc/garage/garage.toml status >/tmp/garage-status.txt 2>&1 || true
+        done
+        node_id=$$(garage -c /etc/garage/garage.toml status | awk '/HEALTHY NODES/{flag=1; next} flag && $$1 ~ /^[0-9a-f]+$$/ {print $$1; exit}')
+        if [ -z "$$node_id" ]; then
+          echo "Failed to determine Garage node ID"
+          garage -c /etc/garage/garage.toml status
+          exit 1
+        fi
+        garage -c /etc/garage/garage.toml layout assign -z dc1 -c "$${GARAGE_CAPACITY:-20G}" "$$node_id" || true
+        next_layout_version=$$(garage -c /etc/garage/garage.toml layout show | awk '/version/ {print $$2}' | tail -n 1)
+        if [ -n "$$next_layout_version" ]; then
+          garage -c /etc/garage/garage.toml layout apply --version "$$next_layout_version" || true
+        fi
+        garage -c /etc/garage/garage.toml bucket create "$${GARAGE_BUCKET}" || true
+        key_output=$$(garage -c /etc/garage/garage.toml key create "$${GARAGE_APP_KEY_NAME:-competition-app}")
+        access_key=$$(printf "%s\n" "$$key_output" | sed -n 's/^Key ID: //p' | head -n 1 | xargs)
+        secret_key=$$(printf "%s\n" "$$key_output" | sed -n 's/^Secret key: //p' | head -n 1 | xargs)
+        if [ -z "$$access_key" ] || [ -z "$$secret_key" ]; then
+          echo "$$key_output"
+          exit 1
+        fi
+        garage -c /etc/garage/garage.toml bucket allow --read --write --owner "$${GARAGE_BUCKET}" --key "$$access_key"
+        printf 'GARAGE_ACCESS_KEY=%s\nGARAGE_SECRET_KEY=%s\n' "$$access_key" "$$secret_key" > /run/garage/env
+
   api:
     build:
       context: .
@@ -40,14 +142,22 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      garage:
+        condition: service_started
+      garage-bootstrap:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:8000:8000"
       - "${TAILSCALE_BIND_IP}:8000:8000"
     volumes:
-      - ./data/storage:/app/data/storage
+      - ./data/garage:/run/garage:ro
     command: >
       /bin/sh -c
-      "alembic -c apps/api/alembic.ini upgrade head &&
+      "if [ -f /run/garage/env ]; then
+      export GARAGE_ACCESS_KEY=$$(grep '^GARAGE_ACCESS_KEY=' /run/garage/env | head -n 1 | cut -d= -f2-) &&
+      export GARAGE_SECRET_KEY=$$(grep '^GARAGE_SECRET_KEY=' /run/garage/env | head -n 1 | cut -d= -f2-);
+      fi &&
+      alembic -c apps/api/alembic.ini upgrade head &&
       uvicorn apps.api.app.main:app --host 0.0.0.0 --port 8000"
 
   worker:
@@ -63,13 +173,21 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      garage:
+        condition: service_started
+      garage-bootstrap:
+        condition: service_completed_successfully
       api:
         condition: service_started
     volumes:
-      - ./data/storage:/app/data/storage
+      - ./data/garage:/run/garage:ro
     command: >
       /bin/sh -c
-      "alembic -c apps/api/alembic.ini upgrade head &&
+      "if [ -f /run/garage/env ]; then
+      export GARAGE_ACCESS_KEY=$$(grep '^GARAGE_ACCESS_KEY=' /run/garage/env | head -n 1 | cut -d= -f2-) &&
+      export GARAGE_SECRET_KEY=$$(grep '^GARAGE_SECRET_KEY=' /run/garage/env | head -n 1 | cut -d= -f2-);
+      fi &&
+      alembic -c apps/api/alembic.ini upgrade head &&
       celery -A apps.worker.worker.queue:celery_app worker --loglevel=info --concurrency=$${WORKER_CONCURRENCY:-2}"
 
   web:
@@ -90,3 +208,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  garage_config:
+  garage_meta:
+  garage_data:

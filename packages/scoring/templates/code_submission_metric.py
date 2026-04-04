@@ -6,7 +6,7 @@ METRIC_NAME = "code_submission_score"
 SCORING_DIRECTION = "max"
 
 
-def score_submission():
+def score_submission() -> float:
     evaluation_rows = [
         {"features": {"value": 1}, "expected": 2},
         {"features": {"value": 2}, "expected": 4},

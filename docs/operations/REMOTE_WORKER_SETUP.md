@@ -3,30 +3,28 @@
 This guide sets up a remote worker machine that:
 
 - joins the private Tailscale network
-- reaches PostgreSQL and Redis only over Tailscale
-- mounts the shared storage directory from the server over Samba
+- reaches PostgreSQL, Redis, API, and Garage only over Tailscale
+- does not mount shared storage
 - runs only the worker container
 
-The repository already expects shared storage at `/app/data/storage` inside the containers. On the main server, this comes from the host path `./data/storage` in [docker-compose.yml](/Users/faiz.ramadhan/Documents/Programming/pelatnas-competition/docker-compose.yml).
+The platform now uses Garage as the S3-compatible object store. The worker downloads submission inputs from Garage into a local temporary directory, processes them, and uploads logs and artifacts back to Garage.
 
 ## Topology
 
 - Main server
-  - runs PostgreSQL, Redis, API, and optionally one local worker
-  - exports `data/storage` over Samba
-  - exposes PostgreSQL, Redis, and Samba only on the `tailscale0` interface
-  - may keep the web app and API public if this machine also serves the website
+  - runs PostgreSQL, Redis, API, Garage, and optionally one local worker
+  - exposes PostgreSQL, Redis, Garage, and optionally the API only on `tailscale0`
+  - bootstraps the Garage bucket and app credentials once, then stores them in `data/garage/env`
 - Remote worker node
   - joins the same Tailnet
-  - mounts the Samba share from the main server
-  - runs the worker container with the mounted share bound to `/app/data/storage`
+  - runs only the worker container
+  - talks to the main server over Tailscale
 
 ## 1. Prepare the main server
 
 Assumptions in this guide:
 
 - repo path on the main server: `/opt/pelatnas-competition`
-- shared storage path on the main server: `/opt/pelatnas-competition/data/storage`
 - Tailscale hostname of the main server: `pelatnas-server`
 
 Adjust those values to your actual host.
@@ -45,136 +43,84 @@ tailscale status
 tailscale ip -4
 ```
 
-### Restrict only the internal ports to Tailscale
-
-If this machine hosts your public website, do not block the public web port, and do not block the public API port if browsers or third-party clients need direct API access.
+### Restrict internal ports to Tailscale
 
 The ports that should stay private for the remote worker setup are:
 
 - PostgreSQL `5432`
 - Redis `6379`
-- Samba `445`
-
-Keep those reachable only from `tailscale0`.
+- Garage S3 API `3900`
+- Garage admin API `3903`
+- API `8000` if workers should reach the API over Tailscale only
 
 If you use `ufw`, allow only the Tailscale interface:
 
 ```bash
 sudo ufw allow in on tailscale0 to any port 5432 proto tcp
 sudo ufw allow in on tailscale0 to any port 6379 proto tcp
-sudo ufw allow in on tailscale0 to any port 445 proto tcp
+sudo ufw allow in on tailscale0 to any port 3900 proto tcp
+sudo ufw allow in on tailscale0 to any port 3903 proto tcp
+sudo ufw allow in on tailscale0 to any port 8000 proto tcp
 
 sudo ufw deny 5432/tcp
 sudo ufw deny 6379/tcp
-sudo ufw deny 445/tcp
+sudo ufw deny 3900/tcp
+sudo ufw deny 3903/tcp
+sudo ufw deny 8000/tcp
 ```
 
-If your firewall is managed another way, apply the same rule intent:
+If your web app is public, keep `80` and `443` public through your reverse proxy. Keep Garage private.
 
-- allow ports `5432`, `6379`, and `445` only from `tailscale0`
-- deny those ports on public interfaces
-- leave `3000` public if the site is served directly from this machine
-- leave `8000` public only if the API must be directly reachable from the public internet
+### Configure and start the main stack
 
-If the web app is reverse-proxied through Nginx or Caddy, the usual pattern is:
+On the main server, copy `.env.example` to `.env` and set values like:
 
-- keep `80` and `443` public
-- keep `3000` private behind the reverse proxy
-- decide whether `8000` should be public or proxy-only
-- keep `5432`, `6379`, and `445` private to Tailscale
+```env
+TAILSCALE_BIND_IP=100.x.y.z
+DATABASE_URL=postgresql+psycopg://competition:competition@postgres:5432/competition
+REDIS_URL=redis://redis:6379/0
 
-### Install Samba
+GARAGE_ENDPOINT=http://garage:3900
+GARAGE_BUCKET=competition-storage
+GARAGE_REGION=garage
+GARAGE_SECURE=false
+GARAGE_REPLICATION_FACTOR=1
+GARAGE_RPC_SECRET=PASTE_64_HEX_CHARACTERS_FROM_OPENSSL_RAND_HEX_32
+GARAGE_ADMIN_TOKEN=CHANGE_THIS_ADMIN_TOKEN
+GARAGE_APP_KEY_NAME=competition-app
+GARAGE_CAPACITY=20G
+
+WORKER_LOCAL_TMP_DIR=/tmp/pelatnas-competition
+```
+
+Generate the RPC secret with:
 
 ```bash
-sudo apt update
-sudo apt install -y samba
+openssl rand -hex 32
 ```
 
-### Create a dedicated Samba user
+Then start the stack:
 
 ```bash
-sudo useradd -M -s /usr/sbin/nologin pelatnas-smb
-sudo passwd pelatnas-smb
-sudo smbpasswd -a pelatnas-smb
+docker compose up -d --build
 ```
 
-### Prepare the shared storage directory
+Garage bootstrap will create `data/garage/env` on the main server. That file contains the generated S3 credentials used by the API and worker containers:
 
 ```bash
-sudo mkdir -p /opt/pelatnas-competition/data/storage
-sudo chown -R pelatnas-smb:pelatnas-smb /opt/pelatnas-competition/data/storage
-sudo chmod -R 2770 /opt/pelatnas-competition/data/storage
+cat data/garage/env
 ```
 
-### Configure Samba
+It should contain:
 
-Add this share to `/etc/samba/smb.conf`:
-
-```ini
-[pelatnas-storage]
-   path = /opt/pelatnas-competition/data/storage
-   browseable = yes
-   read only = no
-   writable = yes
-   valid users = pelatnas-smb
-   force user = pelatnas-smb
-   force group = pelatnas-smb
-   create mask = 0660
-   directory mask = 2770
+```env
+GARAGE_ACCESS_KEY=...
+GARAGE_SECRET_KEY=...
 ```
 
-Validate and restart Samba:
+Keep those two values. Remote workers will need them.
 
-```bash
-sudo testparm
-sudo systemctl restart smbd
-sudo systemctl enable smbd
-```
-
-### Make sure the internal services are reachable over Tailscale
-
-Remote workers must not use Docker service names like `postgres` or `redis`, because those names resolve only inside the main server's Compose network. Remote workers must use the main server's Tailscale IP or MagicDNS hostname.
-
-Example values:
-
-- PostgreSQL: `postgresql+psycopg://competition:competition@pelatnas-server:5432/competition`
-- Redis: `redis://pelatnas-server:6379/0`
-- API: `http://pelatnas-server:8000` if you want worker-to-API traffic to stay inside Tailscale
-
-## 2. Adjust the main server Compose ports
-
-Publishing `0.0.0.0:PORT` is broader than needed for internal services. Prefer binding PostgreSQL and Redis to the Tailscale IP, and keep API and web public only if your deployment requires that.
-
-Example:
-
-1. Get the main server Tailscale IPv4 address:
-
-```bash
-tailscale ip -4
-```
-
-2. Replace the internal service published ports in `docker-compose.yml` with the Tailscale IP:
-
-```yaml
-services:
-  postgres:
-    ports:
-      - "100.x.y.z:5432:5432"
-
-  redis:
-    ports:
-      - "100.x.y.z:6379:6379"
-```
-
-Notes:
-
-- Keep the web port public if this machine serves the website directly.
-- Keep the API port public only if clients must call it directly from the internet.
-- If the API should be private except for internal services, bind port `8000` to the Tailscale IP the same way.
-- If the web app should also stay private, bind port `3000` to the Tailscale IP the same way.
-- When the Tailscale IP changes, update the bind address or use firewall-only restriction instead.
-
-## 3. Prepare the remote worker node
+## 2. Prepare the remote worker node
 
 ### Install prerequisites
 
@@ -182,7 +128,7 @@ On Ubuntu or Debian:
 
 ```bash
 sudo apt update
-sudo apt install -y cifs-utils docker.io docker-compose-plugin
+sudo apt install -y docker.io docker-compose-plugin
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 ```
@@ -194,60 +140,53 @@ tailscale status
 ping pelatnas-server
 nc -vz pelatnas-server 5432
 nc -vz pelatnas-server 6379
-nc -vz pelatnas-server 445
+nc -vz pelatnas-server 3900
+nc -vz pelatnas-server 8000
 ```
 
-### Create a mount point for shared storage
+## 3. Copy the repo and configure the worker
+
+On the remote worker:
 
 ```bash
-sudo mkdir -p /mnt/pelatnas-storage
+git clone <your-repo-url> /opt/pelatnas-competition
+cd /opt/pelatnas-competition
+cp .env.example .env
 ```
 
-### Store Samba credentials securely
+Set the worker `.env` values to point at the main server over Tailscale:
 
-```bash
-sudo install -d -m 700 /etc/samba
-sudo sh -c 'cat > /etc/samba/pelatnas-storage.cred <<EOF
-username=pelatnas-smb
-password=CHANGE_THIS_PASSWORD
-EOF'
-sudo chmod 600 /etc/samba/pelatnas-storage.cred
+```env
+DATABASE_URL=postgresql+psycopg://competition:competition@pelatnas-server:5432/competition
+REDIS_URL=redis://pelatnas-server:6379/0
+WEB_ORIGIN=http://pelatnas-server:3000
+WEB_ORIGINS=http://pelatnas-server:3000
+NEXT_PUBLIC_API_URL=http://pelatnas-server:8000/api/v1
+
+GARAGE_ENDPOINT=http://pelatnas-server:3900
+GARAGE_ACCESS_KEY=PASTE_VALUE_FROM_MAIN_SERVER
+GARAGE_SECRET_KEY=PASTE_VALUE_FROM_MAIN_SERVER
+GARAGE_BUCKET=competition-storage
+GARAGE_REGION=garage
+GARAGE_SECURE=false
+
+WORKER_ID=worker-remote-1
+WORKER_CONCURRENCY=2
+WORKER_LOCAL_TMP_DIR=/tmp/pelatnas-competition
 ```
 
-### Mount the share
+Notes:
 
-```bash
-sudo mount -t cifs //pelatnas-server/pelatnas-storage /mnt/pelatnas-storage \
-  -o credentials=/etc/samba/pelatnas-storage.cred,uid=1000,gid=1000,file_mode=0660,dir_mode=0770
-```
+- Do not use Docker service names like `postgres`, `redis`, or `garage` on the remote worker. Those names resolve only inside the main server Compose network.
+- Use the main server Tailscale hostname or Tailscale IP.
+- The remote worker does not need `TAILSCALE_BIND_IP`.
+- The remote worker does not need `GARAGE_RPC_SECRET` or `GARAGE_ADMIN_TOKEN`, only the generated `GARAGE_ACCESS_KEY` and `GARAGE_SECRET_KEY`.
 
-Verify the mount:
+## 4. Run only the worker service
 
-```bash
-mount | grep pelatnas-storage
-ls -la /mnt/pelatnas-storage
-```
+On the remote worker, use a dedicated Compose file for worker-only deployment. Do not run the main `docker-compose.yml` directly on the remote node, because that file also defines local `postgres`, `redis`, `garage`, and bootstrap services.
 
-### Persist the mount across reboots
-
-Add this line to `/etc/fstab`:
-
-```fstab
-//pelatnas-server/pelatnas-storage /mnt/pelatnas-storage cifs credentials=/etc/samba/pelatnas-storage.cred,uid=1000,gid=1000,file_mode=0660,dir_mode=0770,_netdev 0 0
-```
-
-Test it:
-
-```bash
-sudo umount /mnt/pelatnas-storage
-sudo mount -a
-```
-
-## 4. Run the remote worker container
-
-The remote node should run only the worker service. It should mount the shared Samba-backed directory to `/app/data/storage` so the worker sees the same files as the main server.
-
-Create `docker-compose.worker-remote.yml` on the remote node:
+Create `docker-compose.worker.yml`:
 
 ```yaml
 services:
@@ -256,87 +195,45 @@ services:
       context: .
       dockerfile: infra/docker/worker.Dockerfile
     env_file:
-      - .env.remote-worker
+      - .env
     environment:
       PYTHONPATH: /app
-    volumes:
-      - /mnt/pelatnas-storage:/app/data/storage
     command: >
       /bin/sh -c
-      "alembic -c apps/api/alembic.ini upgrade head &&
+      "if [ -f /run/garage/env ]; then
+      export GARAGE_ACCESS_KEY=$$(grep '^GARAGE_ACCESS_KEY=' /run/garage/env | head -n 1 | cut -d= -f2-) &&
+      export GARAGE_SECRET_KEY=$$(grep '^GARAGE_SECRET_KEY=' /run/garage/env | head -n 1 | cut -d= -f2-);
+      fi &&
+      alembic -c apps/api/alembic.ini upgrade head &&
       celery -A apps.worker.worker.queue:celery_app worker --loglevel=info --concurrency=$${WORKER_CONCURRENCY:-2}"
 ```
 
-Create `.env.remote-worker` on the remote node:
-
-```dotenv
-DATABASE_URL=postgresql+psycopg://competition:competition@pelatnas-server:5432/competition
-REDIS_URL=redis://pelatnas-server:6379/0
-SESSION_SECRET=unused-by-worker
-SESSION_COOKIE_NAME=competition_session
-SESSION_MAX_AGE_SECONDS=28800
-WEB_ORIGIN=http://pelatnas-server:3000
-NEXT_PUBLIC_API_URL=http://pelatnas-server:8000/api/v1
-LOCAL_STORAGE_ROOT=/app/data/storage
-DEFAULT_ADMIN_EMAIL=admin@example.com
-DEFAULT_ADMIN_PASSWORD=admin1234
-DEFAULT_ADMIN_NAME=Phase Zero Admin
-DEFAULT_COMPETITION_SLUG=phase-0-smoke-test
-DEFAULT_COMPETITION_TITLE=Phase 0 Smoke Test
-DEFAULT_COMPETITION_DESCRIPTION=Baseline competition used to verify auth, queue, and worker wiring.
-WORKER_ID=worker-remote-1
-WORKER_CONCURRENCY=2
-```
-
-Notes:
-
-- `DATABASE_URL` and `REDIS_URL` point to the main server over Tailscale.
-- `WORKER_ID` should be unique per node.
-- The worker does not need local PostgreSQL or Redis containers.
-
-Start the worker:
+Then run:
 
 ```bash
-docker compose -f docker-compose.worker-remote.yml up --build -d
+docker compose -f docker-compose.worker.yml up -d --build
 ```
 
-Check logs:
+## 5. Verify the worker end to end
+
+From the remote worker:
 
 ```bash
-docker compose -f docker-compose.worker-remote.yml logs -f worker
+docker logs pelatnas-worker
 ```
-
-## 5. Validation checklist
 
 From the main server:
 
-- `tailscale status` shows both the server and remote worker node
-- `docker compose logs -f worker` or API logs show jobs being claimed by the remote `WORKER_ID`
+- upload a dataset
+- upload a submission
+- confirm the job moves to `running`, then `completed`
+- confirm logs and metrics artifacts are downloadable
+- confirm objects appear in Garage under the configured bucket
 
-From the remote worker node:
+## Troubleshooting
 
-- `mount | grep pelatnas-storage` shows the Samba share mounted
-- `docker compose -f docker-compose.worker-remote.yml ps` shows the worker container as healthy or running
-- worker logs show successful Redis connection and job consumption
-
-In the application:
-
-- submit a test job
-- confirm `worker_id` changes to the remote worker name
-- confirm expected artifacts appear in the shared storage directory
-
-## 6. Security notes
-
-- Do not expose SMB on the public internet.
-- Prefer Tailscale MagicDNS or a fixed Tailscale IP for internal service URLs.
-- Use a dedicated Samba user instead of a personal Linux account.
-- Rotate the Samba password and application secrets before production use.
-- Expose API port `8000` publicly only if your frontend or external clients need direct API access.
-- PostgreSQL and Redis should not listen on public interfaces.
-
-## 7. Failure modes to expect
-
-- If the remote worker uses `postgres` or `redis` as hostnames, connection will fail because those names only exist inside the main server's Compose network.
-- If the Samba mount is missing, the worker may start but will not share datasets and artifacts with the main server correctly.
-- If port `445` is blocked on `tailscale0`, the storage mount will fail.
-- If the main server publishes ports publicly instead of restricting them to Tailscale, you are widening the attack surface unnecessarily.
+- If `nc -vz pelatnas-server 3900` fails, the worker cannot reach Garage.
+- If `data/garage/env` is not created on the main server, inspect `docker compose logs garage-bootstrap`.
+- If the worker starts but jobs fail immediately, check `GARAGE_ENDPOINT`, `GARAGE_ACCESS_KEY`, `GARAGE_SECRET_KEY`, and `GARAGE_BUCKET`.
+- If you delete `data/garage/env` without recreating the Garage key, bootstrap will not be able to recover the secret key. In that case, recreate the Garage data or create a new key and update all workers.
+- If the worker cannot create temporary files, verify `WORKER_LOCAL_TMP_DIR` exists or is writable inside the container.

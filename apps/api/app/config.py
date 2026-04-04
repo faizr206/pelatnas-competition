@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     web_origin: str = "http://localhost:3000"
     web_origins: str | None = None
     local_storage_root: str = "./data/storage"
+    garage_endpoint: str = "http://garage:3900"
+    garage_access_key: str = "change-me-bootstrap"
+    garage_secret_key: str = "change-me-bootstrap"
+    garage_bucket: str = "competition-storage"
+    garage_region: str = "garage"
+    garage_secure: bool = False
+    worker_local_tmp_dir: str = "/tmp/pelatnas-competition"
     default_admin_email: str = "admin@example.com"
     default_admin_password: str = "admin1234"
     default_admin_name: str = "Phase Zero Admin"

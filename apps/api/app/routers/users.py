@@ -66,7 +66,7 @@ def update_user(
 
     if current_admin.id == user.id and not payload.is_admin:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="You cannot remove your own admin access.",
         )
 
@@ -92,7 +92,7 @@ def reset_user_password(
 
     if current_admin.id == user.id:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Use the profile page to change your own password.",
         )
 

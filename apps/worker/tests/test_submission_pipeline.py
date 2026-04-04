@@ -1,5 +1,4 @@
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 from sqlalchemy import select
 
@@ -10,19 +9,23 @@ from packages.core.constants import JobStatus
 from packages.db.base import Base
 from packages.db.models import Competition, CompetitionPhase, Job, Score, Submission, User
 from packages.db.session import get_engine, session_scope
+from packages.storage.service import get_storage, save_text_file
 
 
 def test_process_submission_job_updates_job_and_submission(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_URL", f"sqlite+pysqlite:///{tmp_path / 'worker.db'}")
-    monkeypatch.setenv("LOCAL_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setenv("GARAGE_ENDPOINT", "memory://")
+    monkeypatch.setenv("GARAGE_ACCESS_KEY", "test-access")
+    monkeypatch.setenv("GARAGE_SECRET_KEY", "test-secret")
+    monkeypatch.setenv("GARAGE_BUCKET", "test-bucket")
+    monkeypatch.setenv("WORKER_LOCAL_TMP_DIR", str(tmp_path / "worker-tmp"))
     monkeypatch.setenv("WORKER_ID", "worker-test")
     get_settings.cache_clear()
     get_engine.cache_clear()
+    get_storage.cache_clear()
 
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
-    source_path = tmp_path / "submission.csv"
-    source_path.write_text("prediction\n1\n2\n3\n", encoding="utf-8")
 
     now = datetime.now(UTC)
     with session_scope() as session:
@@ -58,6 +61,13 @@ def test_process_submission_job_updates_job_and_submission(tmp_path, monkeypatch
         )
         session.add(competition)
         session.flush()
+        source_key = save_text_file(
+            "",
+            category="submissions",
+            competition_slug=competition.slug,
+            filename="submission.csv",
+            contents="prediction\n1\n2\n3\n",
+        )
 
         phase = CompetitionPhase(
             competition_id=competition.id,
@@ -76,12 +86,12 @@ def test_process_submission_job_updates_job_and_submission(tmp_path, monkeypatch
             phase_id=phase.id,
             user_id=user.id,
             submission_type="csv",
-            source_archive_path=str(source_path),
+            source_archive_path=source_key,
             manifest_path=None,
             source_original_filename="submission.csv",
             source_content_type="text/csv",
             source_checksum="checksum",
-            source_size_bytes=source_path.stat().st_size,
+            source_size_bytes=len("prediction\n1\n2\n3\n"),
             status="queued",
         )
         session.add(submission)
@@ -112,4 +122,5 @@ def test_process_submission_job_updates_job_and_submission(tmp_path, monkeypatch
         assert submission.status == "completed"
         assert score.metric_name == "row_count"
         assert score.score_value == 3.0
-        assert Path(tmp_path / "storage" / "artifacts" / submission_id / "stdout.log").exists()
+        storage = get_storage()
+        assert any(key.endswith("stdout.log") for key in storage.objects)

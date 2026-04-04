@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import json
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -285,7 +286,9 @@ def _build_stub_participant_module() -> ModuleType:
 
 
 @contextlib.contextmanager
-def _temporary_participant_module(participant_module: ModuleType | None):
+def _temporary_participant_module(
+    participant_module: ModuleType | None,
+) -> Iterator[None]:
     if participant_module is None:
         yield
         return

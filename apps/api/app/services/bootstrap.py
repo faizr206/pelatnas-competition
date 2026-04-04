@@ -6,11 +6,11 @@ from apps.api.app.config import Settings
 from packages.auth.security import hash_password
 from packages.db.models import Competition, CompetitionPhase, User
 from packages.db.session import session_scope
-from packages.storage.service import ensure_storage_root
+from packages.storage.service import ensure_storage_ready
 
 
 def bootstrap_local_state(settings: Settings) -> None:
-    ensure_storage_root(settings.local_storage_root)
+    ensure_storage_ready()
 
     with session_scope() as session:
         user = session.scalar(

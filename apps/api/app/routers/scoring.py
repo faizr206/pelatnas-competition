@@ -1,7 +1,7 @@
-from pathlib import Path
+import tempfile
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from apps.api.app.config import get_settings
@@ -16,7 +16,7 @@ from packages.scoring.service import (
     validate_metric_script,
     validate_solution_csv,
 )
-from packages.storage.service import save_text_file, save_upload
+from packages.storage.service import get_object, get_object_text, save_text_file, save_upload
 
 router = APIRouter(tags=["scoring"])
 
@@ -36,7 +36,13 @@ def get_scoring_config(
 
     metric_code = None
     if competition.metric_script_path:
-        metric_code = Path(competition.metric_script_path).read_text(encoding="utf-8")
+        try:
+            metric_code = get_object_text(competition.metric_script_path)
+        except FileNotFoundError:
+            competition.metric_script_path = None
+            competition.metric_script_filename = None
+            db.commit()
+            db.refresh(competition)
 
     templates = [
         MetricTemplateResponse(
@@ -66,17 +72,24 @@ def get_solution_file(
     slug: str,
     db: Session = Depends(get_db),
     _admin_user: User = Depends(get_admin_user),
-) -> FileResponse:
+) -> Response:
     competition = get_competition_by_slug(db, slug=slug)
     if competition is None:
         raise HTTPException(status_code=404, detail="Competition not found.")
     if not competition.solution_path or not competition.solution_filename:
         raise HTTPException(status_code=404, detail="Solution file not found.")
 
-    return FileResponse(
-        Path(competition.solution_path),
-        filename=competition.solution_filename,
+    try:
+        stored = get_object(competition.solution_path)
+    except FileNotFoundError as exc:
+        competition.solution_path = None
+        competition.solution_filename = None
+        db.commit()
+        raise HTTPException(status_code=404, detail="Solution file not found.") from exc
+    return Response(
+        content=stored.body,
         media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{competition.solution_filename}"'},
     )
 
 
@@ -101,6 +114,12 @@ async def update_scoring_config(
         ScoringDirection.MIN.value,
     }:
         raise HTTPException(status_code=400, detail="Scoring direction must be max or min.")
+    if competition.solution_path is not None:
+        try:
+            get_object(competition.solution_path)
+        except FileNotFoundError:
+            competition.solution_path = None
+            competition.solution_filename = None
     if competition.submission_mode == "prediction_file":
         if solution_file is None and not competition.solution_path:
             raise HTTPException(
@@ -111,6 +130,10 @@ async def update_scoring_config(
         raise HTTPException(status_code=400, detail="Unsupported competition submission mode.")
 
     settings = get_settings()
+    with tempfile.NamedTemporaryFile(suffix=".py") as metric_handle:
+        metric_handle.write(metric_code.encode("utf-8"))
+        metric_handle.flush()
+        validate_metric_script(metric_handle.name, submission_mode=competition.submission_mode)
     metric_path = save_text_file(
         settings.local_storage_root,
         category="scoring",
@@ -118,9 +141,14 @@ async def update_scoring_config(
         filename="custom_metric.py",
         contents=metric_code,
     )
-    validate_metric_script(metric_path, submission_mode=competition.submission_mode)
 
     if solution_file is not None:
+        with tempfile.NamedTemporaryFile(suffix=".csv") as solution_handle:
+            solution_file.file.seek(0)
+            solution_handle.write(solution_file.file.read())
+            solution_handle.flush()
+            validate_solution_csv(solution_handle.name)
+            solution_file.file.seek(0)
         stored_solution = save_upload(
             settings.local_storage_root,
             category="solutions",
@@ -128,7 +156,6 @@ async def update_scoring_config(
             filename=solution_file.filename or "solution.csv",
             upload=solution_file,
         )
-        validate_solution_csv(stored_solution.absolute_path)
         competition.solution_path = stored_solution.absolute_path
         competition.solution_filename = stored_solution.original_filename
 

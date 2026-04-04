@@ -7,6 +7,7 @@ from apps.api.app.config import get_settings
 from packages.db import models  # noqa: F401
 from packages.db.base import Base
 from packages.db.session import get_engine
+from packages.storage.service import get_storage
 
 
 @pytest.fixture
@@ -14,7 +15,11 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     db_path = tmp_path / "test.db"
     monkeypatch.setenv("DATABASE_URL", f"sqlite+pysqlite:///{db_path}")
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/15")
-    monkeypatch.setenv("LOCAL_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setenv("GARAGE_ENDPOINT", "memory://")
+    monkeypatch.setenv("GARAGE_ACCESS_KEY", "test-access")
+    monkeypatch.setenv("GARAGE_SECRET_KEY", "test-secret")
+    monkeypatch.setenv("GARAGE_BUCKET", "test-bucket")
+    monkeypatch.setenv("WORKER_LOCAL_TMP_DIR", str(tmp_path / "worker-tmp"))
     monkeypatch.setenv("SESSION_SECRET", "test-secret")
     monkeypatch.setenv("DEFAULT_ADMIN_EMAIL", "admin@example.com")
     monkeypatch.setenv("DEFAULT_ADMIN_PASSWORD", "admin1234")
@@ -25,6 +30,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
     get_settings.cache_clear()
     get_engine.cache_clear()
+    get_storage.cache_clear()
 
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
@@ -37,3 +43,4 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     Base.metadata.drop_all(bind=engine)
     get_settings.cache_clear()
     get_engine.cache_clear()
+    get_storage.cache_clear()
