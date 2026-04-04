@@ -21,3 +21,6 @@ apps/web/node_modules/
 apps/web/out/
 data/storage/*
 !data/storage/.gitkeep
+data/garage/*
+!data/garage/.gitkeep
+data/garage/env
