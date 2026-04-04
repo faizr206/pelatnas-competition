@@ -34,6 +34,14 @@ class MetricTemplate:
     default_scoring_direction: str
 
 
+@dataclass(frozen=True)
+class ScoreComputationResult:
+    metric_value: float
+    score_value: float
+    public_score_value: float
+    private_score_value: float
+
+
 def compute_submission_score(
     *,
     submission_type: str,
@@ -42,7 +50,7 @@ def compute_submission_score(
     solution_path: str | None = None,
     metric_script_path: str | None = None,
     artifact_dir: str | None = None,
-) -> tuple[float, float]:
+) -> ScoreComputationResult:
     if metric_script_path and (submission_type == "notebook" or solution_path):
         return _score_with_custom_metric(
             submission_type=submission_type,
@@ -72,7 +80,12 @@ def compute_submission_score(
     else:
         raise ValueError(f"Unsupported submission type: {submission_type}")
 
-    return metric_value, metric_value
+    return ScoreComputationResult(
+        metric_value=metric_value,
+        score_value=metric_value,
+        public_score_value=metric_value,
+        private_score_value=metric_value,
+    )
 
 
 def list_metric_templates() -> list[MetricTemplate]:
@@ -114,7 +127,7 @@ def _score_with_custom_metric(
     solution_path: str | None,
     metric_script_path: str,
     artifact_dir: str | None,
-) -> tuple[float, float]:
+) -> ScoreComputationResult:
     if submission_type == "csv":
         if solution_path is None:
             raise ValueError(
@@ -128,12 +141,26 @@ def _score_with_custom_metric(
         )
 
         module = _load_metric_module(Path(metric_script_path))
-        raw_score = module.score_submission(aligned_solution_rows, aligned_submission_rows)
-        if not isinstance(raw_score, int | float):
-            raise ValueError("score_submission must return a numeric score.")
-
-        score = float(raw_score)
-        return score, score
+        public_rows, private_rows = _split_rows_by_usage(
+            solution_rows=aligned_solution_rows,
+            submission_rows=aligned_submission_rows,
+        )
+        public_score = _invoke_metric(
+            module=module,
+            solution_rows=public_rows[0],
+            submission_rows=public_rows[1],
+        )
+        private_score = _invoke_metric(
+            module=module,
+            solution_rows=private_rows[0],
+            submission_rows=private_rows[1],
+        )
+        return ScoreComputationResult(
+            metric_value=private_score,
+            score_value=private_score,
+            public_score_value=public_score,
+            private_score_value=private_score,
+        )
 
     if submission_type == "notebook":
         if artifact_dir is None:
@@ -194,7 +221,7 @@ def _score_notebook_with_custom_metric(
     source_path: str,
     metric_script_path: str,
     artifact_dir: str,
-) -> tuple[float, float]:
+) -> ScoreComputationResult:
     target_path = Path(artifact_dir) / f"{PARTICIPANT_MODULE_NAME}.py"
     _convert_notebook_to_python(source=Path(source_path), target_path=target_path)
 
@@ -215,7 +242,68 @@ def _score_notebook_with_custom_metric(
         raise ValueError("score_submission must return a numeric score.")
 
     score = float(raw_score)
-    return score, score
+    return ScoreComputationResult(
+        metric_value=score,
+        score_value=score,
+        public_score_value=score,
+        private_score_value=score,
+    )
+
+
+def _invoke_metric(
+    *,
+    module: ModuleType,
+    solution_rows: list[dict[str, str]],
+    submission_rows: list[dict[str, str]],
+) -> float:
+    raw_score = module.score_submission(solution_rows, submission_rows)
+    if not isinstance(raw_score, int | float):
+        raise ValueError("score_submission must return a numeric score.")
+    return float(raw_score)
+
+
+def _split_rows_by_usage(
+    *,
+    solution_rows: list[dict[str, str]],
+    submission_rows: list[dict[str, str]],
+) -> tuple[
+    tuple[list[dict[str, str]], list[dict[str, str]]],
+    tuple[list[dict[str, str]], list[dict[str, str]]],
+]:
+    usage_values = [row.get("Usage", "").strip().lower() for row in solution_rows]
+    if not any(usage_values):
+        return (solution_rows, submission_rows), (solution_rows, submission_rows)
+
+    public_solution_rows: list[dict[str, str]] = []
+    public_submission_rows: list[dict[str, str]] = []
+    private_solution_rows: list[dict[str, str]] = []
+    private_submission_rows: list[dict[str, str]] = []
+
+    for solution_row, submission_row in zip(solution_rows, submission_rows, strict=False):
+        usage = solution_row.get("Usage", "").strip().lower()
+        if usage == "public":
+            public_solution_rows.append(solution_row)
+            public_submission_rows.append(submission_row)
+        elif usage == "private":
+            private_solution_rows.append(solution_row)
+            private_submission_rows.append(submission_row)
+        else:
+            public_solution_rows.append(solution_row)
+            public_submission_rows.append(submission_row)
+            private_solution_rows.append(solution_row)
+            private_submission_rows.append(submission_row)
+
+    if not public_solution_rows:
+        public_solution_rows = solution_rows
+        public_submission_rows = submission_rows
+    if not private_solution_rows:
+        private_solution_rows = solution_rows
+        private_submission_rows = submission_rows
+
+    return (
+        (public_solution_rows, public_submission_rows),
+        (private_solution_rows, private_submission_rows),
+    )
 
 
 def _load_metric_module(

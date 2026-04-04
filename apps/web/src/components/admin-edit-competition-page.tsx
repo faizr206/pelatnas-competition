@@ -19,6 +19,7 @@ import {
   getSolutionFileUrl,
   getCompetition,
   getOptionalSession,
+  rescoreCompetitionSubmissions,
   getScoringConfig,
   updateCompetition,
   updateScoringConfig,
@@ -42,6 +43,7 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
   const [solutionFile, setSolutionFile] = useState<File | null>(null);
   const [scoringMessage, setScoringMessage] = useState<string | null>(null);
   const [scoringBusy, setScoringBusy] = useState(false);
+  const [rescoreBusy, setRescoreBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -148,6 +150,26 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
       );
     } finally {
       setScoringBusy(false);
+    }
+  }
+
+  async function handleRescoreAll() {
+    setRescoreBusy(true);
+    setScoringMessage(null);
+
+    try {
+      const result = await rescoreCompetitionSubmissions(slug);
+      setScoringMessage(
+        result.queued_submission_count === 0
+          ? "No submissions were queued for rescoring."
+          : `Queued ${result.queued_submission_count} submissions for rescoring.`,
+      );
+    } catch (submitError) {
+      setScoringMessage(
+        submitError instanceof Error ? submitError.message : "Failed to queue rescoring.",
+      );
+    } finally {
+      setRescoreBusy(false);
     }
   }
 
@@ -317,9 +339,25 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
                     Available templates are a starting point. You can edit the Python code before saving.
                   </span>
                 )}
-                <Button className="h-10 rounded-full bg-[#1f1f1f] px-5 text-xs font-semibold hover:bg-[#111111]">
-                  {scoringBusy ? "Saving scoring..." : "Save scoring setup"}
-                </Button>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 rounded-full border-[#e4e4e4] bg-white px-5 text-xs font-semibold text-[#1f1f1f] hover:bg-[#f6f6f6]"
+                    disabled={scoringBusy || rescoreBusy}
+                    onClick={() => {
+                      void handleRescoreAll();
+                    }}
+                  >
+                    {rescoreBusy ? "Queueing rescore..." : "Rescore all submissions"}
+                  </Button>
+                  <Button
+                    className="h-10 rounded-full bg-[#1f1f1f] px-5 text-xs font-semibold hover:bg-[#111111]"
+                    disabled={scoringBusy || rescoreBusy}
+                  >
+                    {scoringBusy ? "Saving scoring..." : "Save scoring setup"}
+                  </Button>
+                </div>
               </div>
             </form>
           </div>

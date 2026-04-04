@@ -19,6 +19,7 @@ def create_submission(
     source_content_type: str,
     source_checksum: str,
     source_size_bytes: int,
+    is_late_submission: bool,
 ) -> Submission:
     submission = Submission(
         competition_id=competition_id,
@@ -31,6 +32,7 @@ def create_submission(
         source_content_type=source_content_type,
         source_checksum=source_checksum,
         source_size_bytes=source_size_bytes,
+        is_late_submission=is_late_submission,
         status="pending",
     )
     db.add(submission)

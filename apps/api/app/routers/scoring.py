@@ -2,15 +2,21 @@ import tempfile
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.api.app.config import get_settings
 from apps.api.app.dependencies.auth import get_admin_user
 from apps.api.app.dependencies.db import get_db
 from apps.api.app.repositories.competitions import get_competition_by_slug
-from apps.api.app.schemas.scoring import MetricTemplateResponse, ScoringConfigResponse
-from packages.core.constants import ScoringDirection
-from packages.db.models import User
+from apps.api.app.schemas.scoring import (
+    MetricTemplateResponse,
+    RescoreSubmissionsResponse,
+    ScoringConfigResponse,
+)
+from apps.api.app.services.jobs import create_submission_job, enqueue_submission_job
+from packages.core.constants import ScoringDirection, SubmissionStatus
+from packages.db.models import Submission, User
 from packages.scoring.service import (
     list_metric_templates,
     validate_metric_script,
@@ -90,6 +96,54 @@ def get_solution_file(
         content=stored.body,
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{competition.solution_filename}"'},
+    )
+
+
+@router.post(
+    "/competitions/{slug}/rescore-submissions",
+    response_model=RescoreSubmissionsResponse,
+)
+def rescore_submissions(
+    slug: str,
+    db: Session = Depends(get_db),
+    _admin_user: User = Depends(get_admin_user),
+) -> RescoreSubmissionsResponse:
+    competition = get_competition_by_slug(db, slug=slug)
+    if competition is None:
+        raise HTTPException(status_code=404, detail="Competition not found.")
+    if not competition.metric_script_path:
+        raise HTTPException(status_code=400, detail="Save scoring configuration before rescoring.")
+    if competition.submission_mode == "prediction_file" and not competition.solution_path:
+        raise HTTPException(
+            status_code=400,
+            detail="Upload solution.csv before rescoring prediction-file submissions.",
+        )
+
+    submissions = list(
+        db.scalars(
+            select(Submission)
+            .where(Submission.competition_id == competition.id)
+            .order_by(Submission.created_at.asc())
+        ).all()
+    )
+    if not submissions:
+        return RescoreSubmissionsResponse(queued_submission_count=0, job_ids=[])
+
+    job_ids: list[str] = []
+    for submission in submissions:
+        submission.status = SubmissionStatus.PENDING.value
+        job = create_submission_job(db, submission_id=submission.id)
+        job_ids.append(job.id)
+
+    db.commit()
+
+    for job_id in job_ids:
+        enqueue_submission_job(db, job_id=job_id)
+
+    db.commit()
+    return RescoreSubmissionsResponse(
+        queued_submission_count=len(job_ids),
+        job_ids=job_ids,
     )
 
 

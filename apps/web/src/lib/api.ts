@@ -10,6 +10,7 @@ import type {
   LeaderboardEntry,
   LeaderboardVisibility,
   ScoringConfig,
+  RescoreSubmissionsResult,
   Submission,
   User,
 } from "@/lib/competition-types";
@@ -180,6 +181,19 @@ export async function getAdminWorkers() {
   return expectJson<AdminWorker[]>(response);
 }
 
+export async function updateAdminWorker(workerId: string, payload: { is_enabled: boolean }) {
+  const response = await fetch(`${apiBaseUrl}/admin/workers/${workerId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return expectJson<AdminWorker>(response);
+}
+
 export async function getAdminTasks() {
   const response = await fetch(`${apiBaseUrl}/admin/tasks`, {
     credentials: "include",
@@ -303,4 +317,13 @@ export async function updateScoringConfig(
   });
 
   return expectJson<ScoringConfig>(response);
+}
+
+export async function rescoreCompetitionSubmissions(slug: string) {
+  const response = await fetch(`${apiBaseUrl}/competitions/${slug}/rescore-submissions`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  return expectJson<RescoreSubmissionsResult>(response);
 }

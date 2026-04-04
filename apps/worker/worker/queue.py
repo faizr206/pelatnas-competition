@@ -1,11 +1,14 @@
 import os
 
-from celery import Celery
+from celery import Celery, Task
+from celery.signals import heartbeat_sent, worker_ready
 
 from apps.worker.worker.job_handlers.retention_cleanup import cleanup_retention_targets
 from apps.worker.worker.job_handlers.submission_pipeline import process_submission_job
+from packages.workers.service import heartbeat_worker, is_worker_enabled
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+worker_id = os.getenv("WORKER_ID", "worker-local")
 
 celery_app = Celery("competition-worker", broker=redis_url, backend=redis_url)
 celery_app.conf.update(
@@ -16,8 +19,20 @@ celery_app.conf.update(
 )
 
 
-@celery_app.task(name="submission.process")
-def process_submission_task(job_id: str) -> str:
+@worker_ready.connect
+def _record_worker_ready(**_: object) -> None:
+    heartbeat_worker(worker_id)
+
+
+@heartbeat_sent.connect
+def _record_worker_heartbeat(**_: object) -> None:
+    heartbeat_worker(worker_id)
+
+
+@celery_app.task(bind=True, name="submission.process", max_retries=None)
+def process_submission_task(self: Task, job_id: str) -> str:
+    if not is_worker_enabled(worker_id):
+        raise self.retry(countdown=5)
     return process_submission_job(job_id)
 
 

@@ -1,7 +1,16 @@
 from sqlalchemy import select
 
 from packages.auth.security import hash_password
-from packages.db.models import Competition, CompetitionPhase, Job, Score, Submission, User
+from packages.core.time import utcnow
+from packages.db.models import (
+    Competition,
+    CompetitionPhase,
+    Job,
+    Score,
+    Submission,
+    User,
+    WorkerNode,
+)
 from packages.db.session import session_scope
 
 
@@ -72,6 +81,8 @@ def test_admin_can_view_workers_and_tasks(client) -> None:
                 metric_name="row_count",
                 metric_value=42.0,
                 score_value=42.0,
+                public_score_value=42.0,
+                private_score_value=42.0,
                 scoring_version="v1",
             )
         )
@@ -102,6 +113,20 @@ def test_admin_can_view_workers_and_tasks(client) -> None:
                 failure_reason="Notebook validation failed.",
             )
         )
+        session.add(
+            WorkerNode(
+                worker_id="worker-remote-1",
+                is_enabled=True,
+                last_heartbeat_at=utcnow(),
+            )
+        )
+        session.add(
+            WorkerNode(
+                worker_id="worker-remote-2",
+                is_enabled=False,
+                last_heartbeat_at=utcnow(),
+            )
+        )
 
     workers_response = client.get("/api/v1/admin/workers")
     assert workers_response.status_code == 200
@@ -109,7 +134,11 @@ def test_admin_can_view_workers_and_tasks(client) -> None:
     assert [worker["worker_id"] for worker in workers] == ["worker-remote-1", "worker-remote-2"]
     assert workers[0]["completed_jobs"] == 1
     assert workers[0]["availability_status"] == "idle"
+    assert workers[0]["is_online"] is True
+    assert workers[0]["is_enabled"] is True
     assert workers[1]["failed_jobs"] == 1
+    assert workers[1]["availability_status"] == "disabled"
+    assert workers[1]["is_enabled"] is False
 
     tasks_response = client.get("/api/v1/admin/tasks")
     assert tasks_response.status_code == 200
@@ -119,3 +148,31 @@ def test_admin_can_view_workers_and_tasks(client) -> None:
     assert tasks[0]["latest_job"]["status"] == "failed"
     assert tasks[1]["participant_email"] == "participant@example.com"
     assert tasks[1]["latest_score"]["score_value"] == 42.0
+
+
+def test_admin_can_enable_and_disable_worker(client) -> None:
+    _login_admin(client)
+
+    with session_scope() as session:
+        session.add(
+            WorkerNode(
+                worker_id="worker-toggle-1",
+                is_enabled=True,
+                last_heartbeat_at=utcnow(),
+            )
+        )
+
+    disable_response = client.patch(
+        "/api/v1/admin/workers/worker-toggle-1",
+        json={"is_enabled": False},
+    )
+    assert disable_response.status_code == 200
+    assert disable_response.json()["is_enabled"] is False
+    assert disable_response.json()["availability_status"] == "disabled"
+
+    enable_response = client.patch(
+        "/api/v1/admin/workers/worker-toggle-1",
+        json={"is_enabled": True},
+    )
+    assert enable_response.status_code == 200
+    assert enable_response.json()["is_enabled"] is True

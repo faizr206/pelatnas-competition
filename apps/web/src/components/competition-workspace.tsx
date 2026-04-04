@@ -65,6 +65,9 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
   const [fileInputKey, setFileInputKey] = useState(0);
 
   const selectedPhase = competition?.phases[0] ?? null;
+  const competitionHasEnded = selectedPhase
+    ? new Date(selectedPhase.ends_at).getTime() < Date.now()
+    : false;
   const visibleLeaderboard =
     leaderboardVisibility === "public" ? publicLeaderboard : privateLeaderboard;
 
@@ -154,7 +157,11 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
   }, [slug]);
 
   useEffect(() => {
-    if (leaderboardVisibility !== "private" || privateLeaderboard.length > 0) {
+    if (
+      !competitionHasEnded ||
+      leaderboardVisibility !== "private" ||
+      privateLeaderboard.length > 0
+    ) {
       return;
     }
 
@@ -182,7 +189,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
     return () => {
       active = false;
     };
-  }, [leaderboardVisibility, privateLeaderboard.length, slug]);
+  }, [competitionHasEnded, leaderboardVisibility, privateLeaderboard.length, slug]);
 
   useEffect(() => {
     if (!user || !activeJob || !activeJobStatuses.has(activeJob.status)) {
@@ -205,7 +212,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
         const refreshedPublicLeaderboard = await getLeaderboard(slug, "public");
         setPublicLeaderboard(refreshedPublicLeaderboard);
 
-        if (leaderboardVisibility === "private") {
+        if (competitionHasEnded && leaderboardVisibility === "private") {
           const refreshedPrivateLeaderboard = await getLeaderboard(slug, "private");
           setPrivateLeaderboard(refreshedPrivateLeaderboard);
         }
@@ -217,7 +224,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [activeJob, leaderboardVisibility, slug, user]);
+  }, [activeJob, competitionHasEnded, leaderboardVisibility, slug, user]);
 
   async function refreshSignedInResources() {
     if (!user) {
@@ -275,7 +282,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
       const refreshedPublicLeaderboard = await getLeaderboard(slug, "public");
       setPublicLeaderboard(refreshedPublicLeaderboard);
 
-      if (leaderboardVisibility === "private") {
+      if (competitionHasEnded && leaderboardVisibility === "private") {
         const refreshedPrivateLeaderboard = await getLeaderboard(slug, "private");
         setPrivateLeaderboard(refreshedPrivateLeaderboard);
       }
@@ -451,6 +458,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
             {activeTab === "leaderboard" ? (
               <LeaderboardTab
                 competition={competition}
+                competitionHasEnded={competitionHasEnded}
                 entries={visibleLeaderboard}
                 leaderboardVisibility={leaderboardVisibility}
                 onVisibilityChange={setLeaderboardVisibility}
@@ -467,6 +475,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
                 busy={busy}
                 competition={competition}
                 fileInputKey={fileInputKey}
+                competitionHasEnded={competitionHasEnded}
                 slug={competition.slug}
                 submissionFile={submissionFile}
                 submissionType={submissionType}
@@ -696,11 +705,13 @@ function DataTab({
 
 function LeaderboardTab({
   competition,
+  competitionHasEnded,
   entries,
   leaderboardVisibility,
   onVisibilityChange,
 }: {
   competition: Competition;
+  competitionHasEnded: boolean;
   entries: LeaderboardEntry[];
   leaderboardVisibility: LeaderboardVisibility;
   onVisibilityChange: (visibility: LeaderboardVisibility) => void;
@@ -712,7 +723,7 @@ function LeaderboardTab({
           <div>
             <h2 className="text-lg font-semibold text-black">Leaderboard</h2>
             <p className="mt-1 text-sm leading-6 text-[#6b6b6b]">
-              Rankings come from persisted leaderboard projections. The current backend exposes both public and private views.
+              Public rankings stay live during the competition. Private rankings unlock after the competition ends, while late submissions remain visible in submission history but do not change the frozen leaderboard.
             </p>
           </div>
           <div className="flex items-center gap-2 rounded-full bg-[#f3f3f3] p-1">
@@ -726,6 +737,7 @@ function LeaderboardTab({
             <button
               type="button"
               className={toggleClass(leaderboardVisibility === "private")}
+              disabled={!competitionHasEnded}
               onClick={() => onVisibilityChange("private")}
             >
               Private
@@ -737,6 +749,11 @@ function LeaderboardTab({
           <MetricCard label="Ranking rule" value={competition.best_submission_rule} />
           <MetricCard label="Metric direction" value={competition.scoring_direction} />
         </div>
+        {!competitionHasEnded ? (
+          <div className="border-b border-[#efefef] px-6 py-4 text-sm text-[#6b6b6b]">
+            Private leaderboard results appear after the competition end time.
+          </div>
+        ) : null}
         <div className="px-6 pb-6 pt-3">
           <Table>
             <TableHeader>
@@ -875,6 +892,7 @@ function SubmissionsTab({
   activeJob,
   busy,
   competition,
+  competitionHasEnded,
   fileInputKey,
   slug,
   submissionFile,
@@ -888,6 +906,7 @@ function SubmissionsTab({
   activeJob: Job | null;
   busy: boolean;
   competition: Competition;
+  competitionHasEnded: boolean;
   fileInputKey: number;
   slug: string;
   submissionFile: File | null;
@@ -984,7 +1003,7 @@ function SubmissionsTab({
 
       <Panel>
         <PanelHeader
-          description="Your submission history comes from the authenticated submissions endpoint and reflects the latest score and job state."
+          description="Your submission history reflects the latest score, late-submission status, and job state from the authenticated API."
           title="My Submissions"
         />
         <div className="px-6 pb-6 pt-1">
@@ -993,7 +1012,8 @@ function SubmissionsTab({
               <TableRow>
                 <TableHead>File</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Score</TableHead>
+                <TableHead>Public Score</TableHead>
+                <TableHead>Private Score</TableHead>
                 <TableHead>Submitted</TableHead>
                 <TableHead>Logs</TableHead>
               </TableRow>
@@ -1001,7 +1021,7 @@ function SubmissionsTab({
             <TableBody>
               {submissions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-sm text-[#757575]">
+                  <TableCell colSpan={6} className="text-sm text-[#757575]">
                     No submissions recorded yet.
                   </TableCell>
                 </TableRow>
@@ -1015,14 +1035,31 @@ function SubmissionsTab({
                       <div className="mt-1 text-xs text-[#7a7a7a]">
                         {submission.submission_type.toUpperCase()} · {submission.id.slice(0, 8)}
                       </div>
+                      {submission.is_late_submission ? (
+                        <div className="mt-2">
+                          <Badge
+                            variant="outline"
+                            className="border-[#e7d7a7] bg-[#fff8de] text-[10px] uppercase tracking-[0.14em] text-[#8a6a00]"
+                          >
+                            Late submission
+                          </Badge>
+                        </div>
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={submission.status} />
                     </TableCell>
                     <TableCell>
                       {submission.latest_score
-                        ? formatScore(submission.latest_score.score_value)
+                        ? formatScore(submission.latest_score.public_score_value)
                         : "Pending"}
+                    </TableCell>
+                    <TableCell>
+                      {!submission.latest_score
+                        ? "Pending"
+                        : competitionHasEnded
+                          ? formatScore(submission.latest_score.private_score_value)
+                          : "Hidden"}
                     </TableCell>
                     <TableCell>{formatDateTime(submission.created_at)}</TableCell>
                     <TableCell>

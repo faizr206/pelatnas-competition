@@ -12,12 +12,15 @@ export type AdminManagedUser = User;
 export type AdminWorker = {
   worker_id: string;
   availability_status: string;
+  is_online: boolean;
+  is_enabled: boolean;
   total_jobs: number;
   active_jobs: number;
   completed_jobs: number;
   failed_jobs: number;
   latest_job_status: string | null;
   latest_job_at: string | null;
+  last_heartbeat_at: string | null;
 };
 
 export type AdminTask = {
@@ -129,6 +132,11 @@ export type ScoringConfig = {
   templates: MetricTemplate[];
 };
 
+export type RescoreSubmissionsResult = {
+  queued_submission_count: number;
+  job_ids: string[];
+};
+
 export type Dataset = {
   id: string;
   competition_id: string;
@@ -168,11 +176,14 @@ export type Submission = {
   source_content_type: string;
   source_checksum: string;
   source_size_bytes: number;
+  is_late_submission: boolean;
   created_at: string;
   latest_score: {
     metric_name: string;
     metric_value: number;
     score_value: number;
+    public_score_value: number;
+    private_score_value: number;
     scoring_version: string;
   } | null;
   latest_job: Job | null;

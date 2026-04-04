@@ -23,7 +23,7 @@ export function SessionActions({ user }: SessionActionsProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    function handlePointerDown(event: MouseEvent) {
+    function handlePointerDown(event: PointerEvent) {
       if (!containerRef.current?.contains(event.target as Node)) {
         setOpen(false);
       }
@@ -35,11 +35,11 @@ export function SessionActions({ user }: SessionActionsProps) {
       }
     }
 
-    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
     };
   }, []);
@@ -68,7 +68,7 @@ export function SessionActions({ user }: SessionActionsProps) {
   return (
     <div
       ref={containerRef}
-      className="flex flex-wrap items-center justify-end gap-2"
+      className="relative z-50 flex flex-wrap items-center justify-end gap-2"
     >
       {error ? <span className="text-[11px] text-[#a04141]">{error}</span> : null}
       <div className="relative">
@@ -76,6 +76,7 @@ export function SessionActions({ user }: SessionActionsProps) {
           type="button"
           aria-expanded={open}
           aria-haspopup="menu"
+          aria-controls="session-actions-menu"
           className="inline-flex h-9 items-center gap-2 rounded-full border border-[#e7e7e7] bg-white px-2 py-1 text-xs font-medium text-[#202020] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:bg-[#f7f7f7]"
           onClick={() => setOpen((current) => !current)}
         >
@@ -88,7 +89,8 @@ export function SessionActions({ user }: SessionActionsProps) {
 
         {open ? (
           <div
-            className="absolute right-0 z-20 mt-2 min-w-[180px] overflow-hidden rounded-2xl border border-[#e7e7e7] bg-white p-1 shadow-[0_12px_30px_rgba(15,23,42,0.12)]"
+            id="session-actions-menu"
+            className="absolute right-0 z-[100] mt-2 min-w-[180px] overflow-hidden rounded-2xl border border-[#e7e7e7] bg-white p-1 shadow-[0_12px_30px_rgba(15,23,42,0.12)]"
             role="menu"
           >
             <Link

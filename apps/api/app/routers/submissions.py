@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy import select
@@ -23,7 +25,8 @@ from apps.api.app.schemas.submissions import (
 )
 from apps.api.app.services.jobs import create_submission_job, enqueue_submission_job
 from packages.core.constants import SubmissionType
-from packages.db.models import Submission, SubmissionArtifact, User
+from packages.core.time import utcnow
+from packages.db.models import CompetitionPhase, Submission, SubmissionArtifact, User
 from packages.storage.service import get_object, save_upload
 
 router = APIRouter(tags=["submissions"])
@@ -62,6 +65,15 @@ async def submit(
     phase = get_active_phase(db, competition_id=competition.id)
     if phase is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active phase.")
+    now = utcnow()
+    phase_starts_at = _as_utc(phase.starts_at)
+    phase_ends_at = _as_utc(phase.ends_at)
+    if phase_starts_at > now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Submissions are not open for this competition yet.",
+        )
+    is_late_submission = phase_ends_at < now
 
     if submission_type not in {SubmissionType.CSV.value, SubmissionType.NOTEBOOK.value}:
         raise HTTPException(status_code=400, detail="Submission type must be csv or notebook.")
@@ -121,6 +133,7 @@ async def submit(
         source_content_type=stored_file.content_type,
         source_checksum=stored_file.checksum,
         source_size_bytes=stored_file.size_bytes,
+        is_late_submission=is_late_submission,
     )
     job = create_submission_job(db, submission_id=submission.id)
     db.commit()
@@ -200,6 +213,8 @@ def _get_visible_submission(
 def _serialize_submission(*, db: Session, submission: Submission) -> SubmissionResponse:
     latest_score = get_latest_score_for_submission(db, submission_id=submission.id)
     latest_job = get_latest_job_for_submission(db, submission_id=submission.id)
+    phase = db.get(CompetitionPhase, submission.phase_id)
+    phase_has_ended = phase is not None and _as_utc(phase.ends_at) < utcnow()
     return SubmissionResponse(
         id=submission.id,
         competition_id=submission.competition_id,
@@ -212,6 +227,7 @@ def _serialize_submission(*, db: Session, submission: Submission) -> SubmissionR
         source_content_type=submission.source_content_type,
         source_checksum=submission.source_checksum,
         source_size_bytes=submission.source_size_bytes,
+        is_late_submission=submission.is_late_submission,
         created_at=submission.created_at,
         latest_score=(
             None
@@ -219,9 +235,21 @@ def _serialize_submission(*, db: Session, submission: Submission) -> SubmissionR
             else ScoreSummaryResponse(
                 metric_name=latest_score.metric_name,
                 metric_value=latest_score.metric_value,
-                score_value=latest_score.score_value,
+                score_value=(
+                    latest_score.private_score_value
+                    if phase_has_ended
+                    else latest_score.public_score_value
+                ),
+                public_score_value=latest_score.public_score_value,
+                private_score_value=latest_score.private_score_value,
                 scoring_version=latest_score.scoring_version,
             )
         ),
         latest_job=None if latest_job is None else JobResponse.model_validate(latest_job),
     )
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)

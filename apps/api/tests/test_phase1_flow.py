@@ -1,6 +1,11 @@
+from datetime import UTC, datetime
 from io import BytesIO
 
+from sqlalchemy import select
+
 from apps.worker.worker.job_handlers.submission_pipeline import process_submission_job
+from packages.db.models import Competition, CompetitionPhase
+from packages.db.session import session_scope
 
 
 class DummyAsyncResult:
@@ -116,6 +121,104 @@ def test_participant_submission_can_be_processed_and_ranked(client, monkeypatch)
     assert len(leaderboard_payload) == 1
     assert leaderboard_payload[0]["rank"] == 1
     assert leaderboard_payload[0]["score_value"] == 3.0
+
+
+def test_private_leaderboard_unlocks_after_phase_end_and_late_submissions_do_not_count(
+    client, monkeypatch
+) -> None:
+    _login_admin(client)
+
+    competition_response = client.post(
+        "/api/v1/competitions",
+        json={
+            "slug": "freeze-comp",
+            "title": "Freeze Competition",
+            "description": "Leaderboard freeze and late submissions",
+            "visibility": "public",
+            "status": "active",
+            "scoring_metric": "row_count",
+            "scoring_direction": "max",
+            "phase": {
+                "name": "main",
+                "starts_at": "2020-01-01T00:00:00Z",
+                "ends_at": "2099-12-31T00:00:00Z",
+                "submission_limit_per_day": 5,
+                "scoring_version": "v1",
+                "rules_version": "v1",
+            },
+        },
+    )
+    assert competition_response.status_code == 201
+
+    from apps.worker.worker import queue as worker_queue
+
+    monkeypatch.setattr(
+        worker_queue.process_submission_task,
+        "apply_async",
+        lambda args: DummyAsyncResult(),
+    )
+
+    first_submission_response = client.post(
+        "/api/v1/competitions/freeze-comp/submissions",
+        data={"submission_type": "csv"},
+        files={
+            "source_file": (
+                "submission.csv",
+                BytesIO(b"prediction\n0.1\n0.2\n0.3\n"),
+                "text/csv",
+            )
+        },
+    )
+    assert first_submission_response.status_code == 202
+    process_submission_job(first_submission_response.json()["id"])
+
+    private_before_end = client.get("/api/v1/competitions/freeze-comp/leaderboard/private")
+    assert private_before_end.status_code == 404
+
+    with session_scope() as session:
+        competition = session.scalar(select(Competition).where(Competition.slug == "freeze-comp"))
+        assert competition is not None
+        phase = session.scalar(
+            select(CompetitionPhase).where(CompetitionPhase.competition_id == competition.id)
+        )
+        assert phase is not None
+        phase.ends_at = datetime(2020, 1, 2, tzinfo=UTC)
+        session.flush()
+
+    late_submission_response = client.post(
+        "/api/v1/competitions/freeze-comp/submissions",
+        data={"submission_type": "csv"},
+        files={
+            "source_file": (
+                "late-submission.csv",
+                BytesIO(b"prediction\n0.1\n0.2\n0.3\n0.4\n0.5\n"),
+                "text/csv",
+            )
+        },
+    )
+    assert late_submission_response.status_code == 202
+    process_submission_job(late_submission_response.json()["id"])
+
+    submissions_response = client.get("/api/v1/competitions/freeze-comp/submissions")
+    assert submissions_response.status_code == 200
+    submissions_payload = submissions_response.json()
+    assert submissions_payload[0]["is_late_submission"] is True
+    assert submissions_payload[0]["latest_score"]["score_value"] == 5.0
+    assert submissions_payload[1]["is_late_submission"] is False
+
+    public_leaderboard_response = client.get("/api/v1/competitions/freeze-comp/leaderboard/public")
+    assert public_leaderboard_response.status_code == 200
+    public_leaderboard_payload = public_leaderboard_response.json()
+    assert len(public_leaderboard_payload) == 1
+    assert public_leaderboard_payload[0]["score_value"] == 3.0
+
+    private_leaderboard_response = client.get(
+        "/api/v1/competitions/freeze-comp/leaderboard/private"
+    )
+    assert private_leaderboard_response.status_code == 200
+    private_leaderboard_payload = private_leaderboard_response.json()
+    assert len(private_leaderboard_payload) == 1
+    assert private_leaderboard_payload[0]["score_value"] == 3.0
 
 
 def test_submission_job_is_committed_before_worker_can_process_it(client, monkeypatch) -> None:

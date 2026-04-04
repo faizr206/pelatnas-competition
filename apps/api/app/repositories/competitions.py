@@ -27,6 +27,15 @@ def get_active_phase(db: Session, competition_id: str) -> CompetitionPhase | Non
     if phase is not None:
         return phase
 
+    latest_started_phase = db.scalar(
+        select(CompetitionPhase)
+        .where(CompetitionPhase.competition_id == competition_id)
+        .where(CompetitionPhase.starts_at <= now)
+        .order_by(CompetitionPhase.starts_at.desc())
+    )
+    if latest_started_phase is not None:
+        return latest_started_phase
+
     return db.scalar(
         select(CompetitionPhase)
         .where(CompetitionPhase.competition_id == competition_id)

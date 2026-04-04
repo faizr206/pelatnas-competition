@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -5,6 +7,7 @@ from sqlalchemy.orm import Session
 from apps.api.app.dependencies.db import get_db
 from apps.api.app.repositories.competitions import get_active_phase, get_competition_by_slug
 from apps.api.app.schemas.leaderboard import LeaderboardEntryResponse
+from packages.core.time import utcnow
 from packages.db.models import LeaderboardEntry, Submission, User
 
 router = APIRouter(prefix="/competitions/{slug}/leaderboard", tags=["leaderboard"])
@@ -35,6 +38,16 @@ def _read_leaderboard(
     phase = get_active_phase(db, competition_id=competition.id)
     if phase is None:
         return []
+    now = utcnow()
+    phase_starts_at = _as_utc(phase.starts_at)
+    phase_ends_at = _as_utc(phase.ends_at)
+    if phase_starts_at > now:
+        return []
+    if visibility_type == "private" and phase_ends_at >= now:
+        raise HTTPException(
+            status_code=404,
+            detail="Private leaderboard is unavailable until the competition ends.",
+        )
 
     rows = db.execute(
         select(LeaderboardEntry, Submission, User)
@@ -58,3 +71,9 @@ def _read_leaderboard(
         )
         for entry, submission, user in rows
     ]
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)

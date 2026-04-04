@@ -21,6 +21,7 @@ import {
   getAdminWorkers,
   getCompetitions,
   getOptionalSession,
+  updateAdminWorker,
 } from "@/lib/api";
 import type { AdminTask, AdminWorker, Competition, User } from "@/lib/competition-types";
 
@@ -34,6 +35,7 @@ export function AdminPanelPage() {
   const [tasks, setTasks] = useState<AdminTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [savingWorkerIds, setSavingWorkerIds] = useState<string[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -79,6 +81,47 @@ export function AdminPanelPage() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!user?.is_admin) {
+      return;
+    }
+
+    let active = true;
+    const interval = window.setInterval(async () => {
+      try {
+        const workerList = await getAdminWorkers();
+        if (active) {
+          setWorkers(workerList);
+        }
+      } catch {
+        // Keep current data if background refresh fails.
+      }
+    }, 5000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [user?.is_admin]);
+
+  async function handleWorkerToggle(workerId: string, nextEnabled: boolean) {
+    setSavingWorkerIds((current) => [...current, workerId]);
+    setError(null);
+
+    try {
+      const updated = await updateAdminWorker(workerId, { is_enabled: nextEnabled });
+      setWorkers((current) =>
+        current.map((worker) => (worker.worker_id === workerId ? updated : worker)),
+      );
+    } catch (toggleError) {
+      setError(
+        toggleError instanceof Error ? toggleError.message : "Failed to update the worker.",
+      );
+    } finally {
+      setSavingWorkerIds((current) => current.filter((id) => id !== workerId));
+    }
+  }
 
   return (
     <AdminPageShell
@@ -219,12 +262,12 @@ export function AdminPanelPage() {
             <section className="grid gap-4 md:grid-cols-3">
               <MonitoringStatCard label="Known workers" value={String(workers.length)} />
               <MonitoringStatCard
-                label="Busy now"
-                value={String(workers.filter((worker) => worker.active_jobs > 0).length)}
+                label="Online now"
+                value={String(workers.filter((worker) => worker.is_online).length)}
               />
               <MonitoringStatCard
-                label="Idle now"
-                value={String(workers.filter((worker) => worker.active_jobs === 0).length)}
+                label="Enabled"
+                value={String(workers.filter((worker) => worker.is_enabled).length)}
               />
             </section>
 
@@ -235,8 +278,8 @@ export function AdminPanelPage() {
                     Worker Fleet
                   </h2>
                   <p className="mt-2 text-sm text-[#6f6f6f]">
-                    Workers are derived from job history. A worker is marked busy when it currently
-                    owns at least one active task.
+                    Workers report live heartbeats. Use the checkbox to disable a worker from
+                    taking new jobs.
                   </p>
                 </div>
                 <Badge
@@ -264,10 +307,24 @@ export function AdminPanelPage() {
                             {worker.worker_id}
                           </h3>
                           <p className="mt-1 text-sm text-[#6f6f6f]">
-                            Last activity {formatDateTime(worker.latest_job_at)}
+                            Last heartbeat {formatDateTime(worker.last_heartbeat_at)}
                           </p>
                         </div>
-                        <StatusBadge status={worker.availability_status} />
+                        <div className="flex items-start gap-3">
+                          <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#666666]">
+                            <input
+                              type="checkbox"
+                              checked={worker.is_enabled}
+                              disabled={savingWorkerIds.includes(worker.worker_id)}
+                              onChange={(event) =>
+                                void handleWorkerToggle(worker.worker_id, event.target.checked)
+                              }
+                              className="h-4 w-4 rounded border border-[#cfcfcf]"
+                            />
+                            Enabled
+                          </label>
+                          <StatusBadge status={worker.availability_status} />
+                        </div>
                       </div>
                       <div className="mt-5 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
                         <WorkerMetric label="Active" value={String(worker.active_jobs)} />
@@ -277,6 +334,9 @@ export function AdminPanelPage() {
                       </div>
                       <p className="mt-4 text-xs uppercase tracking-[0.14em] text-[#8a8a8a]">
                         Latest job status: {worker.latest_job_status ?? "unknown"}
+                      </p>
+                      <p className="mt-2 text-xs uppercase tracking-[0.14em] text-[#8a8a8a]">
+                        Online: {worker.is_online ? "yes" : "no"}
                       </p>
                     </article>
                   ))}
@@ -433,6 +493,8 @@ function StatusBadge({ status }: { status: string }) {
         ? "bg-[#fff1f1] text-[#a04141]"
         : normalized === "busy" || normalized === "running" || normalized === "scoring"
           ? "bg-[#eef4ff] text-[#315ba8]"
+          : normalized === "disabled"
+            ? "bg-[#f7f0e8] text-[#94602a]"
           : "bg-[#f2f2f2] text-[#5f5f5f]";
 
   return (

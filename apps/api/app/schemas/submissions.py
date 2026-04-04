@@ -9,6 +9,8 @@ class ScoreSummaryResponse(BaseModel):
     metric_name: str
     metric_value: float
     score_value: float
+    public_score_value: float
+    private_score_value: float
     scoring_version: str
 
 
@@ -26,6 +28,7 @@ class SubmissionResponse(BaseModel):
     source_content_type: str
     source_checksum: str
     source_size_bytes: int
+    is_late_submission: bool
     created_at: datetime
     latest_score: ScoreSummaryResponse | None = None
     latest_job: JobResponse | None = None

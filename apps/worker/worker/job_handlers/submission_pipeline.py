@@ -110,7 +110,7 @@ def process_submission_job(job_id: str) -> str:
 
                 submission.status = SubmissionStatus.SCORING.value
                 job.status = JobStatus.SCORING.value
-                metric_value, score_value = compute_submission_score(
+                score_result = compute_submission_score(
                     submission_type=submission.submission_type,
                     source_path=local_source_path,
                     scoring_metric=competition.scoring_metric,
@@ -140,8 +140,10 @@ def process_submission_job(job_id: str) -> str:
                 metrics_path = artifact_dir / "metrics.json"
                 metrics_payload = {
                     "metric_name": competition.scoring_metric,
-                    "metric_value": metric_value,
-                    "score_value": score_value,
+                    "metric_value": score_result.metric_value,
+                    "score_value": score_result.score_value,
+                    "public_score_value": score_result.public_score_value,
+                    "private_score_value": score_result.private_score_value,
                     "scoring_direction": competition.scoring_direction,
                     "best_submission_rule": competition.best_submission_rule,
                 }
@@ -166,25 +168,28 @@ def process_submission_job(job_id: str) -> str:
                 Score(
                     submission_id=submission.id,
                     metric_name=competition.scoring_metric,
-                    metric_value=metric_value,
-                    score_value=score_value,
+                    metric_value=score_result.metric_value,
+                    score_value=score_result.score_value,
+                    public_score_value=score_result.public_score_value,
+                    private_score_value=score_result.private_score_value,
                     scoring_version="v1",
                 )
             )
             session.flush()
 
-            refresh_leaderboard(
-                session,
-                competition=competition,
-                phase_id=submission.phase_id,
-                visibility_type="public",
-            )
-            refresh_leaderboard(
-                session,
-                competition=competition,
-                phase_id=submission.phase_id,
-                visibility_type="private",
-            )
+            if not submission.is_late_submission:
+                refresh_leaderboard(
+                    session,
+                    competition=competition,
+                    phase_id=submission.phase_id,
+                    visibility_type="public",
+                )
+                refresh_leaderboard(
+                    session,
+                    competition=competition,
+                    phase_id=submission.phase_id,
+                    visibility_type="private",
+                )
 
             submission.status = SubmissionStatus.COMPLETED.value
             job.status = JobStatus.COMPLETED.value

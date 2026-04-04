@@ -125,6 +125,7 @@ class Submission(TimestampMixin, Base):
     source_content_type: Mapped[str] = mapped_column(String(255), nullable=False)
     source_checksum: Mapped[str] = mapped_column(String(255), nullable=False)
     source_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    is_late_submission: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     runtime_image: Mapped[str | None] = mapped_column(String(255), nullable=True)
     runtime_image_digest: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
@@ -146,6 +147,15 @@ class Job(TimestampMixin, Base):
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     celery_task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class WorkerNode(TimestampMixin, Base):
+    __tablename__ = "worker_nodes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    worker_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_heartbeat_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class SubmissionArtifact(TimestampMixin, Base):
@@ -171,6 +181,8 @@ class Score(TimestampMixin, Base):
     metric_name: Mapped[str] = mapped_column(String(100), nullable=False)
     metric_value: Mapped[float] = mapped_column(Float, nullable=False)
     score_value: Mapped[float] = mapped_column(Float, nullable=False)
+    public_score_value: Mapped[float] = mapped_column(Float, nullable=False)
+    private_score_value: Mapped[float] = mapped_column(Float, nullable=False)
     scoring_version: Mapped[str] = mapped_column(String(50), nullable=False)
 
 

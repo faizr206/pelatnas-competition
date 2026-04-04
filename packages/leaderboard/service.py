@@ -30,6 +30,7 @@ def refresh_leaderboard(
             .join(Score, Score.submission_id == Submission.id)
             .where(Submission.competition_id == competition.id)
             .where(Submission.phase_id == phase_id)
+            .where(Submission.is_late_submission.is_(False))
         ).all()
     ]
 
@@ -40,6 +41,7 @@ def refresh_leaderboard(
             candidate=row,
             current=existing,
             scoring_direction=competition.scoring_direction,
+            visibility_type=visibility_type,
         ):
             best_by_user[row.submission.user_id] = row
 
@@ -48,6 +50,7 @@ def refresh_leaderboard(
         key=lambda row: _ranking_key(
             row=row,
             scoring_direction=competition.scoring_direction,
+            visibility_type=visibility_type,
         ),
     )
 
@@ -65,7 +68,7 @@ def refresh_leaderboard(
             phase_id=phase_id,
             user_id=row.submission.user_id,
             best_submission_id=row.submission.id,
-            score_value=row.score.score_value,
+            score_value=_score_for_visibility(row.score, visibility_type),
             rank=rank,
             visibility_type=visibility_type,
         )
@@ -81,19 +84,34 @@ def _is_better(
     candidate: SubmissionScoreRow,
     current: SubmissionScoreRow,
     scoring_direction: str,
+    visibility_type: str,
 ) -> bool:
-    if candidate.score.score_value == current.score.score_value:
+    candidate_score = _score_for_visibility(candidate.score, visibility_type)
+    current_score = _score_for_visibility(current.score, visibility_type)
+
+    if candidate_score == current_score:
         if candidate.submission.created_at == current.submission.created_at:
             return candidate.submission.id < current.submission.id
         return cast(bool, candidate.submission.created_at < current.submission.created_at)
 
     if scoring_direction == ScoringDirection.MIN.value:
-        return candidate.score.score_value < current.score.score_value
+        return candidate_score < current_score
 
-    return candidate.score.score_value > current.score.score_value
+    return candidate_score > current_score
 
 
-def _ranking_key(*, row: SubmissionScoreRow, scoring_direction: str) -> tuple[float, object, str]:
-    score = row.score.score_value
+def _ranking_key(
+    *,
+    row: SubmissionScoreRow,
+    scoring_direction: str,
+    visibility_type: str,
+) -> tuple[float, object, str]:
+    score = _score_for_visibility(row.score, visibility_type)
     sortable_score = score if scoring_direction == ScoringDirection.MIN.value else -score
     return sortable_score, row.submission.created_at, row.submission.id
+
+
+def _score_for_visibility(score: Score, visibility_type: str) -> float:
+    if visibility_type == "private":
+        return score.private_score_value
+    return score.public_score_value
