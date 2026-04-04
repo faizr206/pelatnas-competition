@@ -12,6 +12,7 @@ class MetricTemplateResponse(BaseModel):
 
 class ScoringConfigResponse(BaseModel):
     competition_id: str
+    submission_mode: str
     scoring_metric: str
     scoring_direction: str
     solution_filename: str | None

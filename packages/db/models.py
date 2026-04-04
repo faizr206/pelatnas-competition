@@ -44,6 +44,9 @@ class Competition(TimestampMixin, Base):
     visibility: Mapped[str] = mapped_column(String(50), nullable=False, default="public")
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="draft")
     created_by: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    submission_mode: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="prediction_file"
+    )
     scoring_metric: Mapped[str] = mapped_column(String(100), nullable=False, default="row_count")
     scoring_direction: Mapped[str] = mapped_column(String(20), nullable=False, default="max")
     best_submission_rule: Mapped[str] = mapped_column(

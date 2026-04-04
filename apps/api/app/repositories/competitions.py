@@ -40,6 +40,7 @@ def create_competition(
     payload: dict[str, Any],
     created_by: str,
 ) -> Competition:
+    _normalize_submission_mode_payload(payload)
     phase_data = payload.pop("phase")
     competition = Competition(created_by=created_by, **payload)
     db.add(competition)
@@ -57,6 +58,7 @@ def update_competition(
     competition: Competition,
     payload: dict[str, Any],
 ) -> Competition:
+    _normalize_submission_mode_payload(payload)
     phase_data = payload.pop("phase", None)
     for key, value in payload.items():
         setattr(competition, key, value)
@@ -72,3 +74,13 @@ def update_competition(
 
     db.flush()
     return competition
+
+
+def _normalize_submission_mode_payload(payload: dict[str, Any]) -> None:
+    submission_mode = payload.get("submission_mode")
+    if submission_mode == "prediction_file":
+        payload["allow_csv_submissions"] = True
+        payload["allow_notebook_submissions"] = False
+    elif submission_mode == "code_submission":
+        payload["allow_csv_submissions"] = False
+        payload["allow_notebook_submissions"] = True

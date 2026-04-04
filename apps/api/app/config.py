@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     session_cookie_name: str = "competition_session"
     session_max_age_seconds: int = 28800
     web_origin: str = "http://localhost:3000"
+    web_origins: str | None = None
     local_storage_root: str = "./data/storage"
     default_admin_email: str = "admin@example.com"
     default_admin_password: str = "admin1234"
@@ -24,6 +25,15 @@ class Settings(BaseSettings):
     worker_id: str = "worker-local"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def cors_allowed_origins(self) -> list[str]:
+        raw = self.web_origins or self.web_origin
+        return [
+            origin.rstrip("/")
+            for origin in (item.strip() for item in raw.split(","))
+            if origin
+        ]
 
 
 @lru_cache

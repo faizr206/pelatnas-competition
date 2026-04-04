@@ -18,6 +18,7 @@ class CompetitionCreateRequest(BaseModel):
     description: str
     visibility: str = "public"
     status: str = "draft"
+    submission_mode: str = "prediction_file"
     scoring_metric: str = "row_count"
     scoring_direction: str = "max"
     best_submission_rule: str = "best_score"
@@ -38,6 +39,7 @@ class CompetitionUpdateRequest(BaseModel):
     description: str | None = None
     visibility: str | None = None
     status: str | None = None
+    submission_mode: str | None = None
     scoring_metric: str | None = None
     scoring_direction: str | None = None
     best_submission_rule: str | None = None
@@ -74,6 +76,7 @@ class CompetitionResponse(BaseModel):
     description: str
     visibility: str
     status: str
+    submission_mode: str
     scoring_metric: str
     scoring_direction: str
     best_submission_rule: str

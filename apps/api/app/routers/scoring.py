@@ -51,6 +51,7 @@ def get_scoring_config(
     ]
     return ScoringConfigResponse(
         competition_id=competition.id,
+        submission_mode=competition.submission_mode,
         scoring_metric=competition.scoring_metric,
         scoring_direction=competition.scoring_direction,
         solution_filename=competition.solution_filename,
@@ -100,11 +101,14 @@ async def update_scoring_config(
         ScoringDirection.MIN.value,
     }:
         raise HTTPException(status_code=400, detail="Scoring direction must be max or min.")
-    if solution_file is None and not competition.solution_path:
-        raise HTTPException(
-            status_code=400,
-            detail="Upload solution.csv before saving scoring configuration.",
-        )
+    if competition.submission_mode == "prediction_file":
+        if solution_file is None and not competition.solution_path:
+            raise HTTPException(
+                status_code=400,
+                detail="Upload solution.csv before saving scoring configuration.",
+            )
+    elif competition.submission_mode != "code_submission":
+        raise HTTPException(status_code=400, detail="Unsupported competition submission mode.")
 
     settings = get_settings()
     metric_path = save_text_file(
@@ -114,7 +118,7 @@ async def update_scoring_config(
         filename="custom_metric.py",
         contents=metric_code,
     )
-    validate_metric_script(metric_path)
+    validate_metric_script(metric_path, submission_mode=competition.submission_mode)
 
     if solution_file is not None:
         stored_solution = save_upload(

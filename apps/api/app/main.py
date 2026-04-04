@@ -8,6 +8,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from apps.api.app.config import get_settings
 from apps.api.app.middleware.request_context import RequestContextMiddleware
 from apps.api.app.routers import (
+    admin_monitoring,
     auth,
     competitions,
     datasets,
@@ -43,7 +44,7 @@ app.add_middleware(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.web_origin],
+    allow_origins=settings.cors_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -68,3 +69,4 @@ app.include_router(jobs.router, prefix="/api/v1")
 app.include_router(leaderboard.router, prefix="/api/v1")
 app.include_router(scoring.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
+app.include_router(admin_monitoring.router, prefix="/api/v1")

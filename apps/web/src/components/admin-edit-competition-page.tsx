@@ -232,9 +232,9 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
                 Scoring Setup
               </h3>
               <p className="text-sm text-[#6f6f6f]">
-                Upload a `solution.csv` with an `Id` column, then save a Python
-                scoring script. The worker will align submission rows by `Id`
-                and execute `score_submission(solution_rows, submission_rows)`.
+                {competition.submission_mode === "code_submission"
+                  ? "Save a Python metric script that imports `predict` from `participant_submission`. During scoring, the worker converts each uploaded notebook into that Python module and executes `score_submission()`."
+                  : "Upload a `solution.csv` with an `Id` column, then save a Python scoring script. The worker will align submission rows by `Id` and execute `score_submission(solution_rows, submission_rows)`."}
               </p>
             </div>
 
@@ -285,16 +285,18 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
             </div>
 
             <form className="space-y-5" onSubmit={handleScoringSubmit}>
-              <label className="block space-y-2">
-                <Label className="text-[11px] uppercase tracking-[0.14em] text-[#666666]">
-                  solution.csv
-                </Label>
-                <Input
-                  type="file"
-                  accept=".csv"
-                  onChange={(event) => setSolutionFile(event.target.files?.[0] ?? null)}
-                />
-              </label>
+              {competition.submission_mode === "prediction_file" ? (
+                <label className="block space-y-2">
+                  <Label className="text-[11px] uppercase tracking-[0.14em] text-[#666666]">
+                    solution.csv
+                  </Label>
+                  <Input
+                    type="file"
+                    accept=".csv"
+                    onChange={(event) => setSolutionFile(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+              ) : null}
 
               <label className="block space-y-2">
                 <Label className="text-[11px] uppercase tracking-[0.14em] text-[#666666]">

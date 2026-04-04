@@ -9,6 +9,38 @@ export type User = {
 
 export type AdminManagedUser = User;
 
+export type AdminWorker = {
+  worker_id: string;
+  availability_status: string;
+  total_jobs: number;
+  active_jobs: number;
+  completed_jobs: number;
+  failed_jobs: number;
+  latest_job_status: string | null;
+  latest_job_at: string | null;
+};
+
+export type AdminTask = {
+  submission_id: string;
+  competition_id: string;
+  competition_slug: string;
+  competition_title: string;
+  participant_id: string;
+  participant_email: string;
+  participant_name: string;
+  submission_type: string;
+  submission_status: string;
+  source_original_filename: string;
+  created_at: string;
+  latest_job: Job | null;
+  latest_score: {
+    metric_name: string;
+    metric_value: number;
+    score_value: number;
+    scoring_version: string;
+  } | null;
+};
+
 export type CompetitionPhase = {
   id: string;
   name: string;
@@ -26,6 +58,7 @@ export type Competition = {
   description: string;
   visibility: string;
   status: string;
+  submission_mode: string;
   scoring_metric: string;
   scoring_direction: string;
   best_submission_rule: string;
@@ -58,6 +91,7 @@ export type CompetitionCreatePayload = {
   description: string;
   visibility: string;
   status: string;
+  submission_mode: string;
   scoring_metric: string;
   scoring_direction: string;
   best_submission_rule: string;
@@ -86,6 +120,7 @@ export type MetricTemplate = {
 
 export type ScoringConfig = {
   competition_id: string;
+  submission_mode: string;
   scoring_metric: string;
   scoring_direction: string;
   solution_filename: string | null;

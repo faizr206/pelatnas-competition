@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import contextlib
 import csv
 import hashlib
 import importlib.util
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -18,6 +20,7 @@ SUPPORTED_SCORING_METRICS = {
 }
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+PARTICIPANT_MODULE_NAME = "participant_submission"
 
 
 @dataclass(frozen=True)
@@ -37,18 +40,21 @@ def compute_submission_score(
     scoring_metric: str,
     solution_path: str | None = None,
     metric_script_path: str | None = None,
+    artifact_dir: str | None = None,
 ) -> tuple[float, float]:
-    if bool(solution_path) != bool(metric_script_path):
-        raise ValueError(
-            "Competition scoring is incomplete. Save both solution.csv and the metric script."
-        )
-
-    if solution_path and metric_script_path:
+    if metric_script_path and (submission_type == "notebook" or solution_path):
         return _score_with_custom_metric(
             submission_type=submission_type,
             source_path=source_path,
             solution_path=solution_path,
             metric_script_path=metric_script_path,
+            artifact_dir=artifact_dir,
+        )
+    if solution_path and not metric_script_path:
+        raise ValueError("Competition scoring is incomplete. Save the metric script.")
+    if metric_script_path and submission_type == "csv" and not solution_path:
+        raise ValueError(
+            "Competition scoring is incomplete. Save both solution.csv and the metric script."
         )
 
     if scoring_metric not in SUPPORTED_SCORING_METRICS:
@@ -72,7 +78,7 @@ def list_metric_templates() -> list[MetricTemplate]:
     templates: list[MetricTemplate] = []
 
     for path in sorted(TEMPLATES_DIR.glob("*.py")):
-        module = _load_metric_module(path)
+        module = _load_metric_module(path, participant_module=_build_stub_participant_module())
         templates.append(
             MetricTemplate(
                 name=path.stem,
@@ -93,34 +99,51 @@ def validate_solution_csv(path: str) -> None:
         raise ValueError("solution.csv must contain at least one row.")
 
 
-def validate_metric_script(path: str) -> None:
-    _load_metric_module(Path(path))
+def validate_metric_script(path: str, *, submission_mode: str = "prediction_file") -> None:
+    participant_module = (
+        _build_stub_participant_module() if submission_mode == "code_submission" else None
+    )
+    _load_metric_module(Path(path), participant_module=participant_module)
 
 
 def _score_with_custom_metric(
     *,
     submission_type: str,
     source_path: str,
-    solution_path: str,
+    solution_path: str | None,
     metric_script_path: str,
+    artifact_dir: str | None,
 ) -> tuple[float, float]:
-    if submission_type != "csv":
-        raise ValueError("Custom scoring currently supports csv submissions only.")
+    if submission_type == "csv":
+        if solution_path is None:
+            raise ValueError(
+                "Competition scoring is incomplete. Save both solution.csv and the metric script."
+            )
+        solution_rows = _read_csv_rows(Path(solution_path))
+        submission_rows = _read_csv_rows(Path(source_path))
+        aligned_solution_rows, aligned_submission_rows = _align_rows_by_id(
+            solution_rows=solution_rows,
+            submission_rows=submission_rows,
+        )
 
-    solution_rows = _read_csv_rows(Path(solution_path))
-    submission_rows = _read_csv_rows(Path(source_path))
-    aligned_solution_rows, aligned_submission_rows = _align_rows_by_id(
-        solution_rows=solution_rows,
-        submission_rows=submission_rows,
-    )
+        module = _load_metric_module(Path(metric_script_path))
+        raw_score = module.score_submission(aligned_solution_rows, aligned_submission_rows)
+        if not isinstance(raw_score, int | float):
+            raise ValueError("score_submission must return a numeric score.")
 
-    module = _load_metric_module(Path(metric_script_path))
-    raw_score = module.score_submission(aligned_solution_rows, aligned_submission_rows)
-    if not isinstance(raw_score, int | float):
-        raise ValueError("score_submission must return a numeric score.")
+        score = float(raw_score)
+        return score, score
 
-    score = float(raw_score)
-    return score, score
+    if submission_type == "notebook":
+        if artifact_dir is None:
+            raise ValueError("Notebook scoring requires an artifact directory.")
+        return _score_notebook_with_custom_metric(
+            source_path=source_path,
+            metric_script_path=metric_script_path,
+            artifact_dir=artifact_dir,
+        )
+
+    raise ValueError(f"Unsupported submission type: {submission_type}")
 
 
 def _read_csv_rows(path: Path) -> list[dict[str, str]]:
@@ -165,7 +188,40 @@ def _align_rows_by_id(
     )
 
 
-def _load_metric_module(path: Path) -> ModuleType:
+def _score_notebook_with_custom_metric(
+    *,
+    source_path: str,
+    metric_script_path: str,
+    artifact_dir: str,
+) -> tuple[float, float]:
+    target_path = Path(artifact_dir) / f"{PARTICIPANT_MODULE_NAME}.py"
+    _convert_notebook_to_python(source=Path(source_path), target_path=target_path)
+
+    participant_module = _load_python_module(
+        target_path,
+        module_name=PARTICIPANT_MODULE_NAME,
+    )
+    predict = getattr(participant_module, "predict", None)
+    if not callable(predict):
+        raise ValueError("Notebook submission must define a callable predict function.")
+
+    metric_module = _load_metric_module(
+        Path(metric_script_path),
+        participant_module=participant_module,
+    )
+    raw_score = metric_module.score_submission()
+    if not isinstance(raw_score, int | float):
+        raise ValueError("score_submission must return a numeric score.")
+
+    score = float(raw_score)
+    return score, score
+
+
+def _load_metric_module(
+    path: Path,
+    *,
+    participant_module: ModuleType | None = None,
+) -> ModuleType:
     spec = importlib.util.spec_from_file_location(
         f"competition_metric_{hashlib.sha256(str(path).encode()).hexdigest()[:12]}",
         path,
@@ -174,13 +230,75 @@ def _load_metric_module(path: Path) -> ModuleType:
         raise ValueError("Metric script could not be loaded.")
 
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    with _temporary_participant_module(participant_module):
+        spec.loader.exec_module(module)
 
     score_submission = getattr(module, "score_submission", None)
     if not callable(score_submission):
         raise ValueError("Metric script must define a callable score_submission function.")
 
     return module
+
+
+def _load_python_module(path: Path, *, module_name: str) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"{path.name} could not be loaded.")
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _convert_notebook_to_python(*, source: Path, target_path: Path) -> None:
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    with source.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+
+    lines: list[str] = []
+    for index, cell in enumerate(payload.get("cells", []), start=1):
+        if cell.get("cell_type") != "code":
+            continue
+
+        if lines:
+            lines.append("")
+        lines.append(f"# Cell {index}")
+
+        source_value = cell.get("source", [])
+        if isinstance(source_value, str):
+            cell_source = source_value
+        else:
+            cell_source = "".join(source_value)
+        lines.append(cell_source.rstrip("\n"))
+
+    target_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def _build_stub_participant_module() -> ModuleType:
+    module = ModuleType(PARTICIPANT_MODULE_NAME)
+
+    def predict(_data: object) -> None:
+        return None
+
+    module.predict = predict  # type: ignore[attr-defined]
+    return module
+
+
+@contextlib.contextmanager
+def _temporary_participant_module(participant_module: ModuleType | None):
+    if participant_module is None:
+        yield
+        return
+
+    original = sys.modules.get(PARTICIPANT_MODULE_NAME)
+    sys.modules[PARTICIPANT_MODULE_NAME] = participant_module
+    try:
+        yield
+    finally:
+        if original is None:
+            sys.modules.pop(PARTICIPANT_MODULE_NAME, None)
+        else:
+            sys.modules[PARTICIPANT_MODULE_NAME] = original
 
 
 def _score_csv(*, source: Path, scoring_metric: str) -> float:

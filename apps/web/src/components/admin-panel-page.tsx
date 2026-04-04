@@ -7,16 +7,31 @@ import { AdminAccessState, AdminPageShell } from "@/components/admin-page-shell"
 import { AdminUserManagement } from "@/components/admin-user-management";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getCompetitions, getOptionalSession } from "@/lib/api";
-import type { Competition, User } from "@/lib/competition-types";
+import {
+  getAdminTasks,
+  getAdminWorkers,
+  getCompetitions,
+  getOptionalSession,
+} from "@/lib/api";
+import type { AdminTask, AdminWorker, Competition, User } from "@/lib/competition-types";
 
-type AdminTab = "competitions" | "users";
+type AdminTab = "competitions" | "workers" | "tasks" | "users";
 
 export function AdminPanelPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>("competitions");
   const [user, setUser] = useState<User | null>(null);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [workers, setWorkers] = useState<AdminWorker[]>([]);
+  const [tasks, setTasks] = useState<AdminTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,9 +43,11 @@ export function AdminPanelPage() {
       setError(null);
 
       try {
-        const [currentUser, competitionList] = await Promise.all([
+        const [currentUser, competitionList, workerList, taskList] = await Promise.all([
           getOptionalSession(),
           getCompetitions(),
+          getAdminWorkers(),
+          getAdminTasks(),
         ]);
 
         if (!active) {
@@ -39,6 +56,8 @@ export function AdminPanelPage() {
 
         setUser(currentUser);
         setCompetitions(competitionList);
+        setWorkers(workerList);
+        setTasks(taskList);
       } catch (loadError) {
         if (!active) {
           return;
@@ -89,6 +108,18 @@ export function AdminPanelPage() {
               className="px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.14em] data-[state=active]:bg-white"
             >
               Competitions
+            </TabsTrigger>
+            <TabsTrigger
+              value="workers"
+              className="px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.14em] data-[state=active]:bg-white"
+            >
+              Workers
+            </TabsTrigger>
+            <TabsTrigger
+              value="tasks"
+              className="px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.14em] data-[state=active]:bg-white"
+            >
+              Tasks
             </TabsTrigger>
             <TabsTrigger
               value="users"
@@ -184,6 +215,186 @@ export function AdminPanelPage() {
             </section>
           </TabsContent>
 
+          <TabsContent value="workers" className="space-y-6">
+            <section className="grid gap-4 md:grid-cols-3">
+              <MonitoringStatCard label="Known workers" value={String(workers.length)} />
+              <MonitoringStatCard
+                label="Busy now"
+                value={String(workers.filter((worker) => worker.active_jobs > 0).length)}
+              />
+              <MonitoringStatCard
+                label="Idle now"
+                value={String(workers.filter((worker) => worker.active_jobs === 0).length)}
+              />
+            </section>
+
+            <section className="rounded-[28px] border border-[#ececec] bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-[-0.03em] text-black">
+                    Worker Fleet
+                  </h2>
+                  <p className="mt-2 text-sm text-[#6f6f6f]">
+                    Workers are derived from job history. A worker is marked busy when it currently
+                    owns at least one active task.
+                  </p>
+                </div>
+                <Badge
+                  variant="secondary"
+                  className="border-0 bg-[#f2f2f2] px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-[#666666]"
+                >
+                  {workers.length} workers
+                </Badge>
+              </div>
+
+              {workers.length === 0 ? (
+                <div className="mt-6 rounded-2xl border border-dashed border-[#e4e4e4] px-5 py-5 text-sm text-[#6b6b6b]">
+                  No workers have claimed jobs yet.
+                </div>
+              ) : (
+                <div className="mt-6 grid gap-4 xl:grid-cols-2">
+                  {workers.map((worker) => (
+                    <article
+                      key={worker.worker_id}
+                      className="rounded-3xl border border-[#ececec] bg-[#fafafa] p-5"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <h3 className="text-base font-semibold tracking-[-0.03em] text-black">
+                            {worker.worker_id}
+                          </h3>
+                          <p className="mt-1 text-sm text-[#6f6f6f]">
+                            Last activity {formatDateTime(worker.latest_job_at)}
+                          </p>
+                        </div>
+                        <StatusBadge status={worker.availability_status} />
+                      </div>
+                      <div className="mt-5 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+                        <WorkerMetric label="Active" value={String(worker.active_jobs)} />
+                        <WorkerMetric label="Done" value={String(worker.completed_jobs)} />
+                        <WorkerMetric label="Failed" value={String(worker.failed_jobs)} />
+                        <WorkerMetric label="Total" value={String(worker.total_jobs)} />
+                      </div>
+                      <p className="mt-4 text-xs uppercase tracking-[0.14em] text-[#8a8a8a]">
+                        Latest job status: {worker.latest_job_status ?? "unknown"}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </TabsContent>
+
+          <TabsContent value="tasks" className="space-y-6">
+            <section className="grid gap-4 md:grid-cols-4">
+              <MonitoringStatCard label="All submissions" value={String(tasks.length)} />
+              <MonitoringStatCard
+                label="Succeeded"
+                value={String(tasks.filter((task) => task.latest_job?.status === "completed").length)}
+              />
+              <MonitoringStatCard
+                label="Failed"
+                value={String(tasks.filter((task) => task.latest_job?.status === "failed").length)}
+              />
+              <MonitoringStatCard
+                label="In progress"
+                value={String(
+                  tasks.filter((task) =>
+                    ["pending", "queued", "running", "collecting", "scoring"].includes(
+                      task.latest_job?.status ?? task.submission_status,
+                    ),
+                  ).length,
+                )}
+              />
+            </section>
+
+            <section className="rounded-[28px] border border-[#ececec] bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-[-0.03em] text-black">
+                    Submission Tasks
+                  </h2>
+                  <p className="mt-2 text-sm text-[#6f6f6f]">
+                    Global submission queue visibility across competitions, including owner,
+                    current job status, worker assignment, and failure details.
+                  </p>
+                </div>
+                <Badge
+                  variant="secondary"
+                  className="border-0 bg-[#f2f2f2] px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-[#666666]"
+                >
+                  {tasks.length} tasks
+                </Badge>
+              </div>
+
+              {tasks.length === 0 ? (
+                <div className="mt-6 rounded-2xl border border-dashed border-[#e4e4e4] px-5 py-5 text-sm text-[#6b6b6b]">
+                  No submissions have been created yet.
+                </div>
+              ) : (
+                <div className="mt-6">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Competition</TableHead>
+                        <TableHead>Participant</TableHead>
+                        <TableHead>File</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Worker</TableHead>
+                        <TableHead>Score</TableHead>
+                        <TableHead>Created</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tasks.map((task) => (
+                        <TableRow key={task.submission_id}>
+                          <TableCell className="min-w-[220px]">
+                            <div className="font-medium text-black">{task.competition_title}</div>
+                            <div className="mt-1 text-xs text-[#777777]">
+                              <Link
+                                href={`/competitions/${task.competition_slug}`}
+                                className="underline decoration-[#cccccc] underline-offset-4"
+                              >
+                                {task.competition_slug}
+                              </Link>
+                            </div>
+                          </TableCell>
+                          <TableCell className="min-w-[220px]">
+                            <div className="font-medium text-black">{task.participant_name}</div>
+                            <div className="mt-1 text-xs text-[#777777]">
+                              {task.participant_email}
+                            </div>
+                          </TableCell>
+                          <TableCell className="min-w-[220px]">
+                            <div className="font-medium text-black">
+                              {task.source_original_filename}
+                            </div>
+                            <div className="mt-1 text-xs uppercase tracking-[0.14em] text-[#8a8a8a]">
+                              {task.submission_type}
+                            </div>
+                          </TableCell>
+                          <TableCell className="min-w-[180px]">
+                            <StatusBadge status={task.latest_job?.status ?? task.submission_status} />
+                            {task.latest_job?.failure_reason ? (
+                              <p className="mt-2 max-w-[280px] text-xs leading-5 text-[#9b4a4a]">
+                                {task.latest_job.failure_reason}
+                              </p>
+                            ) : null}
+                          </TableCell>
+                          <TableCell>{task.latest_job?.worker_id ?? "pending"}</TableCell>
+                          <TableCell>
+                            {task.latest_score ? task.latest_score.score_value.toFixed(4) : "-"}
+                          </TableCell>
+                          <TableCell>{formatDateTime(task.created_at)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </section>
+          </TabsContent>
+
           <TabsContent value="users">
             <AdminUserManagement currentUser={user} />
           </TabsContent>
@@ -191,4 +402,52 @@ export function AdminPanelPage() {
       )}
     </AdminPageShell>
   );
+}
+
+function MonitoringStatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <article className="rounded-[24px] border border-[#ececec] bg-white px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8a8a8a]">{label}</p>
+      <p className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-black">{value}</p>
+    </article>
+  );
+}
+
+function WorkerMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[#e8e8e8] bg-white px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8a8a8a]">
+        {label}
+      </div>
+      <div className="mt-2 text-xl font-semibold tracking-[-0.04em] text-black">{value}</div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const normalized = status.toLowerCase();
+  const className =
+    normalized === "completed" || normalized === "idle"
+      ? "bg-[#eef8ef] text-[#25623a]"
+      : normalized === "failed"
+        ? "bg-[#fff1f1] text-[#a04141]"
+        : normalized === "busy" || normalized === "running" || normalized === "scoring"
+          ? "bg-[#eef4ff] text-[#315ba8]"
+          : "bg-[#f2f2f2] text-[#5f5f5f]";
+
+  return (
+    <span
+      className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${className}`}
+    >
+      {normalized}
+    </span>
+  );
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  return new Date(value).toLocaleString();
 }

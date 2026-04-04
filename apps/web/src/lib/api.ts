@@ -1,5 +1,7 @@
 import type {
   AdminManagedUser,
+  AdminTask,
+  AdminWorker,
   Competition,
   CompetitionCreatePayload,
   CompetitionUpdatePayload,
@@ -167,6 +169,24 @@ export async function getAdminUsers() {
   });
 
   return expectJson<AdminManagedUser[]>(response);
+}
+
+export async function getAdminWorkers() {
+  const response = await fetch(`${apiBaseUrl}/admin/workers`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  return expectJson<AdminWorker[]>(response);
+}
+
+export async function getAdminTasks() {
+  const response = await fetch(`${apiBaseUrl}/admin/tasks`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  return expectJson<AdminTask[]>(response);
 }
 
 export async function createAdminUser(payload: {

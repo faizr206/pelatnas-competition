@@ -1,4 +1,5 @@
 from io import BytesIO
+import json
 
 from apps.worker.worker.job_handlers.submission_pipeline import process_submission_job
 
@@ -163,3 +164,120 @@ def score_submission(solution_rows, submission_rows):
     assert scoring_response.json()["detail"] == (
         "Upload solution.csv before saving scoring configuration."
     )
+
+
+def test_code_submission_competition_scores_uploaded_notebook(client, monkeypatch) -> None:
+    _login_admin(client)
+
+    create_response = client.post(
+        "/api/v1/competitions",
+        json={
+            "slug": "code-comp",
+            "title": "Code Competition",
+            "description": "Competition with notebook code submissions",
+            "visibility": "public",
+            "status": "active",
+            "submission_mode": "code_submission",
+            "scoring_metric": "code_submission_score",
+            "scoring_direction": "max",
+            "best_submission_rule": "best_score",
+            "max_submissions_per_day": 5,
+            "max_runtime_minutes": 20,
+            "max_memory_mb": 4096,
+            "max_cpu": 2,
+            "allow_csv_submissions": False,
+            "allow_notebook_submissions": True,
+            "source_retention_days": 30,
+            "log_retention_days": 14,
+            "artifact_retention_days": 14,
+            "phase": {
+                "name": "main",
+                "starts_at": "2026-01-01T00:00:00Z",
+                "ends_at": "2026-12-31T00:00:00Z",
+                "submission_limit_per_day": 5,
+                "scoring_version": "v1",
+                "rules_version": "v1",
+            },
+        },
+    )
+    assert create_response.status_code == 201
+
+    scoring_response = client.put(
+        "/api/v1/competitions/code-comp/scoring-config",
+        data={
+            "metric_name": "code_submission_score",
+            "scoring_direction": "max",
+            "metric_code": """
+from participant_submission import predict
+
+def score_submission():
+    rows = [
+        {"features": {"value": 2}, "expected": 4},
+        {"features": {"value": 5}, "expected": 10},
+    ]
+    return sum(
+        1.0
+        for row in rows
+        if predict(row["features"]) == row["expected"]
+    )
+""".strip(),
+        },
+    )
+    assert scoring_response.status_code == 200
+    assert scoring_response.json()["submission_mode"] == "code_submission"
+    assert scoring_response.json()["solution_filename"] is None
+
+    from apps.worker.worker import queue as worker_queue
+
+    monkeypatch.setattr(
+        worker_queue.process_submission_task,
+        "apply_async",
+        lambda args: DummyAsyncResult(),
+    )
+
+    notebook_payload = json.dumps(
+        {
+            "cells": [
+                {
+                    "cell_type": "code",
+                    "metadata": {},
+                    "source": [
+                        "def predict(data):\n",
+                        "    return data['value'] * 2\n",
+                    ],
+                }
+            ],
+            "metadata": {},
+            "nbformat": 4,
+            "nbformat_minor": 5,
+        }
+    ).encode("utf-8")
+
+    submission_response = client.post(
+        "/api/v1/competitions/code-comp/submissions",
+        data={"submission_type": "notebook"},
+        files={
+            "source_file": (
+                "submission.ipynb",
+                BytesIO(notebook_payload),
+                "application/x-ipynb+json",
+            )
+        },
+    )
+    assert submission_response.status_code == 202
+    job_id = submission_response.json()["id"]
+
+    process_submission_job(job_id)
+
+    submissions_response = client.get("/api/v1/competitions/code-comp/submissions")
+    assert submissions_response.status_code == 200
+    submission_payload = submissions_response.json()[0]
+    assert submission_payload["latest_score"]["metric_name"] == "code_submission_score"
+    assert submission_payload["latest_score"]["score_value"] == 2.0
+
+    artifacts_response = client.get(
+        f"/api/v1/submissions/{submission_payload['id']}/artifacts"
+    )
+    assert artifacts_response.status_code == 200
+    artifact_types = {item["artifact_type"] for item in artifacts_response.json()}
+    assert "participant_submission.py" in artifact_types

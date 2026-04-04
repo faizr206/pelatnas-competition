@@ -18,6 +18,7 @@ export type CompetitionFormState = {
   description: string;
   visibility: string;
   status: string;
+  submission_mode: string;
   scoring_metric: string;
   scoring_direction: string;
   best_submission_rule: string;
@@ -97,6 +98,16 @@ export function AdminCompetitionForm({
             <option value="draft">draft</option>
             <option value="active">active</option>
             <option value="archived">archived</option>
+          </select>
+        </Field>
+        <Field label="Submission mode">
+          <select
+            className={inputClassName}
+            value={form.submission_mode}
+            onChange={(event) => onChange("submission_mode", event.target.value)}
+          >
+            <option value="prediction_file">prediction file (.csv)</option>
+            <option value="code_submission">code submission (.ipynb)</option>
           </select>
         </Field>
       </section>
@@ -229,8 +240,8 @@ export function AdminCompetitionForm({
         <Field label="CSV submissions">
           <select
             className={inputClassName}
-            value={form.allow_csv_submissions}
-            onChange={(event) => onChange("allow_csv_submissions", event.target.value)}
+            disabled
+            value={form.submission_mode === "prediction_file" ? "true" : "false"}
           >
             <option value="true">enabled</option>
             <option value="false">disabled</option>
@@ -239,10 +250,8 @@ export function AdminCompetitionForm({
         <Field label="Notebook submissions">
           <select
             className={inputClassName}
-            value={form.allow_notebook_submissions}
-            onChange={(event) =>
-              onChange("allow_notebook_submissions", event.target.value)
-            }
+            disabled
+            value={form.submission_mode === "code_submission" ? "true" : "false"}
           >
             <option value="true">enabled</option>
             <option value="false">disabled</option>
@@ -289,8 +298,8 @@ export function AdminCompetitionForm({
         ) : (
           <span className="text-sm text-[#8a8a8a]">
             {mode === "create"
-              ? "New competitions become available immediately after creation."
-              : "Saving updates the competition metadata and the active phase."}
+              ? "Choose one submission mode. The allowed file type is derived automatically."
+              : "Saving updates the competition metadata, active phase, and derived submission type."}
           </span>
         )}
         <Button className="h-10 rounded-full bg-[#1f1f1f] px-5 text-xs font-semibold hover:bg-[#111111]">
@@ -319,6 +328,7 @@ export function createEmptyCompetitionForm(): CompetitionFormState {
     description: "",
     visibility: "public",
     status: "draft",
+    submission_mode: "prediction_file",
     scoring_metric: "row_count",
     scoring_direction: "max",
     best_submission_rule: "best_score",
@@ -327,7 +337,7 @@ export function createEmptyCompetitionForm(): CompetitionFormState {
     max_memory_mb: "4096",
     max_cpu: "2",
     allow_csv_submissions: "true",
-    allow_notebook_submissions: "true",
+    allow_notebook_submissions: "false",
     source_retention_days: "30",
     log_retention_days: "14",
     artifact_retention_days: "14",
@@ -355,6 +365,7 @@ export function competitionFormFromCompetition(
     description: competition.description,
     visibility: competition.visibility,
     status: competition.status,
+    submission_mode: competition.submission_mode,
     scoring_metric: competition.scoring_metric,
     scoring_direction: competition.scoring_direction,
     best_submission_rule: competition.best_submission_rule,
@@ -401,6 +412,7 @@ function toSharedCompetitionPayload(
     description: form.description.trim(),
     visibility: form.visibility,
     status: form.status,
+    submission_mode: form.submission_mode,
     scoring_metric: form.scoring_metric.trim(),
     scoring_direction: form.scoring_direction,
     best_submission_rule: form.best_submission_rule.trim(),
@@ -408,8 +420,8 @@ function toSharedCompetitionPayload(
     max_runtime_minutes: Number(form.max_runtime_minutes),
     max_memory_mb: Number(form.max_memory_mb),
     max_cpu: Number(form.max_cpu),
-    allow_csv_submissions: form.allow_csv_submissions === "true",
-    allow_notebook_submissions: form.allow_notebook_submissions === "true",
+    allow_csv_submissions: form.submission_mode === "prediction_file",
+    allow_notebook_submissions: form.submission_mode === "code_submission",
     source_retention_days: Number(form.source_retention_days),
     log_retention_days: Number(form.log_retention_days),
     artifact_retention_days: Number(form.artifact_retention_days),

@@ -72,7 +72,20 @@ def process_submission_job(job_id: str) -> str:
                 scoring_metric=competition.scoring_metric,
                 solution_path=competition.solution_path,
                 metric_script_path=competition.metric_script_path,
+                artifact_dir=str(artifact_dir),
             )
+            if submission.submission_type == "notebook":
+                converted_source = artifact_dir / "participant_submission.py"
+                if converted_source.exists():
+                    session.add(
+                        SubmissionArtifact(
+                            submission_id=submission.id,
+                            artifact_type="participant_submission.py",
+                            storage_path=str(converted_source),
+                            checksum=None,
+                            size_bytes=converted_source.stat().st_size,
+                        )
+                    )
             metrics_path = artifact_dir / "metrics.json"
             metrics_payload = {
                 "metric_name": competition.scoring_metric,
