@@ -5,6 +5,7 @@ from celery.signals import heartbeat_sent, worker_ready
 
 from apps.worker.worker.job_handlers.retention_cleanup import cleanup_retention_targets
 from apps.worker.worker.job_handlers.submission_pipeline import process_submission_job
+from apps.worker.worker.utils.gpu import detect_gpu_available
 from packages.workers.service import heartbeat_worker, is_worker_enabled
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -21,12 +22,12 @@ celery_app.conf.update(
 
 @worker_ready.connect
 def _record_worker_ready(**_: object) -> None:
-    heartbeat_worker(worker_id)
+    heartbeat_worker(worker_id, gpu_available=detect_gpu_available())
 
 
 @heartbeat_sent.connect
 def _record_worker_heartbeat(**_: object) -> None:
-    heartbeat_worker(worker_id)
+    heartbeat_worker(worker_id, gpu_available=detect_gpu_available())
 
 
 @celery_app.task(bind=True, name="submission.process", max_retries=None)

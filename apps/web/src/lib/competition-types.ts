@@ -14,6 +14,7 @@ export type AdminWorker = {
   availability_status: string;
   is_online: boolean;
   is_enabled: boolean;
+  gpu_available: boolean;
   total_jobs: number;
   active_jobs: number;
   completed_jobs: number;

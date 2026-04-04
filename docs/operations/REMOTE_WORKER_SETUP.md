@@ -213,6 +213,25 @@ Then run:
 docker compose -f docker-compose.worker.yml up -d --build
 ```
 
+If the remote node has NVIDIA Container Toolkit and should expose CUDA to the worker container, add a small override file:
+
+```yaml
+services:
+  worker:
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+```
+
+Then start the worker with both files:
+
+```bash
+docker compose -f docker-compose.worker.yml -f docker-compose.gpu.yml up -d --build
+```
+
+After the worker sends heartbeats, the admin worker panel will show whether `GPU available` is `yes` or `no`.
+
 ## 5. Verify the worker end to end
 
 From the remote worker:

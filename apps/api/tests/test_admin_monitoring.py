@@ -117,6 +117,7 @@ def test_admin_can_view_workers_and_tasks(client) -> None:
             WorkerNode(
                 worker_id="worker-remote-1",
                 is_enabled=True,
+                gpu_available=True,
                 last_heartbeat_at=utcnow(),
             )
         )
@@ -124,6 +125,7 @@ def test_admin_can_view_workers_and_tasks(client) -> None:
             WorkerNode(
                 worker_id="worker-remote-2",
                 is_enabled=False,
+                gpu_available=False,
                 last_heartbeat_at=utcnow(),
             )
         )
@@ -136,9 +138,11 @@ def test_admin_can_view_workers_and_tasks(client) -> None:
     assert workers[0]["availability_status"] == "idle"
     assert workers[0]["is_online"] is True
     assert workers[0]["is_enabled"] is True
+    assert workers[0]["gpu_available"] is True
     assert workers[1]["failed_jobs"] == 1
     assert workers[1]["availability_status"] == "disabled"
     assert workers[1]["is_enabled"] is False
+    assert workers[1]["gpu_available"] is False
 
     tasks_response = client.get("/api/v1/admin/tasks")
     assert tasks_response.status_code == 200
@@ -158,6 +162,7 @@ def test_admin_can_enable_and_disable_worker(client) -> None:
             WorkerNode(
                 worker_id="worker-toggle-1",
                 is_enabled=True,
+                gpu_available=False,
                 last_heartbeat_at=utcnow(),
             )
         )

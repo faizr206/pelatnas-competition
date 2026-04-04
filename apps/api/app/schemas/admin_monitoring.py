@@ -11,6 +11,7 @@ class AdminWorkerResponse(BaseModel):
     availability_status: str
     is_online: bool
     is_enabled: bool
+    gpu_available: bool
     total_jobs: int
     active_jobs: int
     completed_jobs: int

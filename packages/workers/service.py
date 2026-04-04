@@ -22,16 +22,19 @@ def upsert_worker_node(
     *,
     worker_id: str,
     is_enabled: bool | None = None,
+    gpu_available: bool | None = None,
     heartbeat: bool = False,
 ) -> WorkerNode:
     worker = get_worker_node(db, worker_id=worker_id)
     if worker is None:
-        worker = WorkerNode(worker_id=worker_id, is_enabled=True)
+        worker = WorkerNode(worker_id=worker_id, is_enabled=True, gpu_available=False)
         db.add(worker)
         db.flush()
 
     if is_enabled is not None:
         worker.is_enabled = is_enabled
+    if gpu_available is not None:
+        worker.gpu_available = gpu_available
     if heartbeat:
         worker.last_heartbeat_at = utcnow()
 
@@ -40,9 +43,14 @@ def upsert_worker_node(
     return worker
 
 
-def heartbeat_worker(worker_id: str) -> None:
+def heartbeat_worker(worker_id: str, *, gpu_available: bool | None = None) -> None:
     with session_scope() as session:
-        upsert_worker_node(session, worker_id=worker_id, heartbeat=True)
+        upsert_worker_node(
+            session,
+            worker_id=worker_id,
+            gpu_available=gpu_available,
+            heartbeat=True,
+        )
 
 
 def is_worker_enabled(worker_id: str) -> bool:

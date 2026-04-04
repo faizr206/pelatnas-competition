@@ -155,6 +155,7 @@ class WorkerNode(TimestampMixin, Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
     worker_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    gpu_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     last_heartbeat_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 

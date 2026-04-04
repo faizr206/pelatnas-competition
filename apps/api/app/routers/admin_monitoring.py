@@ -48,6 +48,7 @@ def list_workers(
                 availability_status="idle",
                 is_online=False,
                 is_enabled=True,
+                gpu_available=False,
                 total_jobs=0,
                 active_jobs=0,
                 completed_jobs=0,
@@ -74,6 +75,7 @@ def list_workers(
                 availability_status="offline",
                 is_online=False,
                 is_enabled=registry_worker.is_enabled,
+                gpu_available=registry_worker.gpu_available,
                 total_jobs=0,
                 active_jobs=0,
                 completed_jobs=0,
@@ -84,6 +86,7 @@ def list_workers(
             )
             workers[worker_id] = summary
         summary.is_enabled = registry_worker.is_enabled
+        summary.gpu_available = registry_worker.gpu_available
         summary.last_heartbeat_at = registry_worker.last_heartbeat_at
         summary.is_online = worker_is_online(registry_worker)
 

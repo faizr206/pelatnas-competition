@@ -338,6 +338,9 @@ export function AdminPanelPage() {
                       <p className="mt-2 text-xs uppercase tracking-[0.14em] text-[#8a8a8a]">
                         Online: {worker.is_online ? "yes" : "no"}
                       </p>
+                      <p className="mt-2 text-xs uppercase tracking-[0.14em] text-[#8a8a8a]">
+                        GPU available: {worker.gpu_available ? "yes" : "no"}
+                      </p>
                     </article>
                   ))}
                 </div>
