@@ -21,6 +21,29 @@ def _login_admin(client) -> None:
     assert response.status_code == 200
 
 
+def _create_user_and_login(client, *, email: str, password: str, display_name: str) -> None:
+    admin_login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "admin@example.com", "password": "admin1234"},
+    )
+    assert admin_login.status_code == 200
+    create_response = client.post(
+        "/api/v1/admin/users",
+        json={
+            "email": email,
+            "display_name": display_name,
+            "default_password": password,
+            "is_admin": False,
+            "status": "active",
+        },
+    )
+    assert create_response.status_code == 201
+    logout_response = client.post("/api/v1/auth/logout")
+    assert logout_response.status_code == 204
+    user_login = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert user_login.status_code == 200
+
+
 def test_admin_can_create_competition_and_upload_dataset(client) -> None:
     _login_admin(client)
 
@@ -59,6 +82,89 @@ def test_admin_can_create_competition_and_upload_dataset(client) -> None:
     history_response = client.get("/api/v1/competitions/phase1-comp/datasets")
     assert history_response.status_code == 200
     assert len(history_response.json()) == 1
+
+
+def test_upcoming_competition_is_hidden_from_public_until_phase_start(client) -> None:
+    _login_admin(client)
+
+    competition_response = client.post(
+        "/api/v1/competitions",
+        json={
+            "slug": "future-comp",
+            "title": "Future Competition",
+            "description": "Hidden before the phase starts",
+            "visibility": "public",
+            "status": "active",
+            "scoring_metric": "row_count",
+            "scoring_direction": "max",
+            "phase": {
+                "name": "main",
+                "starts_at": "2099-01-01T00:00:00Z",
+                "ends_at": "2099-12-31T00:00:00Z",
+                "submission_limit_per_day": 5,
+                "scoring_version": "v1",
+                "rules_version": "v1",
+            },
+        },
+    )
+    assert competition_response.status_code == 201
+
+    logout_response = client.post("/api/v1/auth/logout")
+    assert logout_response.status_code == 204
+
+    public_list_response = client.get("/api/v1/competitions")
+    assert public_list_response.status_code == 200
+    assert all(item["slug"] != "future-comp" for item in public_list_response.json())
+
+    public_detail_response = client.get("/api/v1/competitions/future-comp")
+    assert public_detail_response.status_code == 404
+
+    _create_user_and_login(
+        client,
+        email="participant-future@example.com",
+        password="participant1234",
+        display_name="Future Participant",
+    )
+
+    participant_list_response = client.get("/api/v1/competitions")
+    assert participant_list_response.status_code == 200
+    assert all(item["slug"] != "future-comp" for item in participant_list_response.json())
+
+    participant_detail_response = client.get("/api/v1/competitions/future-comp")
+    assert participant_detail_response.status_code == 404
+
+
+def test_admin_can_access_upcoming_competition_detail_before_start(client) -> None:
+    _login_admin(client)
+
+    competition_response = client.post(
+        "/api/v1/competitions",
+        json={
+            "slug": "future-admin-access-comp",
+            "title": "Future Admin Access Competition",
+            "description": "Admins can access this before start",
+            "visibility": "public",
+            "status": "active",
+            "scoring_metric": "row_count",
+            "scoring_direction": "max",
+            "phase": {
+                "name": "main",
+                "starts_at": "2099-01-01T00:00:00Z",
+                "ends_at": "2099-12-31T00:00:00Z",
+                "submission_limit_per_day": 5,
+                "scoring_version": "v1",
+                "rules_version": "v1",
+            },
+        },
+    )
+    assert competition_response.status_code == 201
+
+    detail_response = client.get("/api/v1/competitions/future-admin-access-comp")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["slug"] == "future-admin-access-comp"
+
+    leaderboard_response = client.get("/api/v1/competitions/future-admin-access-comp/leaderboard")
+    assert leaderboard_response.status_code == 200
 
 
 def test_dataset_upload_rejects_disallowed_extension(client) -> None:
@@ -609,7 +715,9 @@ def test_hidden_admin_submissions_are_excluded_from_leaderboard(client, monkeypa
     assert submission_response.status_code == 202
     process_submission_job(submission_response.json()["id"])
 
-    visible_leaderboard_response = client.get("/api/v1/competitions/hidden-admin-comp/leaderboard/public")
+    visible_leaderboard_response = client.get(
+        "/api/v1/competitions/hidden-admin-comp/leaderboard/public"
+    )
     assert visible_leaderboard_response.status_code == 200
     assert len(visible_leaderboard_response.json()) == 1
 
@@ -676,7 +784,9 @@ def test_admin_can_hide_individual_submission_from_leaderboard(client, monkeypat
     submission_payload = submissions_response.json()[0]
     assert submission_payload["display_on_leaderboard"] is True
 
-    leaderboard_before = client.get("/api/v1/competitions/submission-visibility-comp/leaderboard/public")
+    leaderboard_before = client.get(
+        "/api/v1/competitions/submission-visibility-comp/leaderboard/public"
+    )
     assert leaderboard_before.status_code == 200
     assert len(leaderboard_before.json()) == 1
 
@@ -687,6 +797,8 @@ def test_admin_can_hide_individual_submission_from_leaderboard(client, monkeypat
     assert hide_response.status_code == 200
     assert hide_response.json()["display_on_leaderboard"] is False
 
-    leaderboard_after = client.get("/api/v1/competitions/submission-visibility-comp/leaderboard/public")
+    leaderboard_after = client.get(
+        "/api/v1/competitions/submission-visibility-comp/leaderboard/public"
+    )
     assert leaderboard_after.status_code == 200
     assert leaderboard_after.json() == []

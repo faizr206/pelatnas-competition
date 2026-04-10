@@ -16,8 +16,8 @@ from apps.api.app.services.auth import (
     change_user_password,
     validate_new_password,
 )
-from packages.leaderboard.service import refresh_leaderboard
 from packages.db.models import Competition, Submission, User
+from packages.leaderboard.service import refresh_leaderboard
 from packages.security.login_rate_limit import login_rate_limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])

@@ -5,7 +5,10 @@ from sqlalchemy.orm import Session
 
 from apps.api.app.dependencies.auth import get_admin_user
 from apps.api.app.dependencies.db import get_db
-from apps.api.app.repositories.competitions import get_competition_by_slug
+from apps.api.app.repositories.competitions import (
+    get_admin_competition_by_slug,
+    list_admin_competitions,
+)
 from apps.api.app.repositories.jobs import get_latest_job_for_submission
 from apps.api.app.repositories.scores import get_latest_score_for_submission
 from apps.api.app.schemas.admin_monitoring import (
@@ -13,6 +16,7 @@ from apps.api.app.schemas.admin_monitoring import (
     AdminWorkerResponse,
     AdminWorkerUpdateRequest,
 )
+from apps.api.app.schemas.competitions import CompetitionResponse
 from apps.api.app.schemas.jobs import JobResponse
 from apps.api.app.schemas.submissions import ScoreSummaryResponse
 from packages.db.models import Competition, Job, Submission, User
@@ -26,6 +30,26 @@ from packages.workers.service import (
 router = APIRouter(prefix="/admin", tags=["admin-monitoring"])
 
 ACTIVE_JOB_STATUSES = {"pending", "queued", "running", "collecting", "scoring"}
+
+
+@router.get("/competitions", response_model=list[CompetitionResponse])
+def list_admin_competitions_endpoint(
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+) -> list[CompetitionResponse]:
+    return [CompetitionResponse.model_validate(item) for item in list_admin_competitions(db)]
+
+
+@router.get("/competitions/{slug}", response_model=CompetitionResponse)
+def get_admin_competition_endpoint(
+    slug: str,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+) -> CompetitionResponse:
+    competition = get_admin_competition_by_slug(db, slug=slug)
+    if competition is None:
+        raise HTTPException(status_code=404, detail="Competition not found.")
+    return CompetitionResponse.model_validate(competition)
 
 
 @router.get("/workers", response_model=list[AdminWorkerResponse])
@@ -160,7 +184,7 @@ def list_competition_submissions(
     _: User = Depends(get_admin_user),
     db: Session = Depends(get_db),
 ) -> list[AdminTaskResponse]:
-    competition = get_competition_by_slug(db, slug=slug)
+    competition = get_admin_competition_by_slug(db, slug=slug)
     if competition is None:
         raise HTTPException(status_code=404, detail="Competition not found.")
 

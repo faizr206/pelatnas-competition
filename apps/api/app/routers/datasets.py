@@ -23,9 +23,9 @@ router = APIRouter(tags=["datasets"])
 def get_datasets(
     slug: str,
     db: Session = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> list[DatasetResponse]:
-    competition = get_competition_by_slug(db, slug=slug)
+    competition = get_competition_by_slug(db, slug=slug, current_user=current_user)
     if competition is None:
         raise HTTPException(status_code=404, detail="Competition not found.")
     return [
@@ -44,9 +44,9 @@ async def upload_dataset(
     name: str = Form(...),
     dataset_file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user),
 ) -> DatasetResponse:
-    competition = get_competition_by_slug(db, slug=slug)
+    competition = get_competition_by_slug(db, slug=slug, current_user=admin_user)
     if competition is None:
         raise HTTPException(status_code=404, detail="Competition not found.")
 

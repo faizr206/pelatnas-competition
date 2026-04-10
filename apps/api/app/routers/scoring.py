@@ -41,9 +41,9 @@ router = APIRouter(tags=["scoring"])
 def get_scoring_config(
     slug: str,
     db: Session = Depends(get_db),
-    _admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user),
 ) -> ScoringConfigResponse:
-    competition = get_competition_by_slug(db, slug=slug)
+    competition = get_competition_by_slug(db, slug=slug, current_user=admin_user)
     if competition is None:
         raise HTTPException(status_code=404, detail="Competition not found.")
 
@@ -93,9 +93,9 @@ def get_scoring_config(
 def get_solution_file(
     slug: str,
     db: Session = Depends(get_db),
-    _admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user),
 ) -> Response:
-    competition = get_competition_by_slug(db, slug=slug)
+    competition = get_competition_by_slug(db, slug=slug, current_user=admin_user)
     if competition is None:
         raise HTTPException(status_code=404, detail="Competition not found.")
     if not competition.solution_path or not competition.solution_filename:
@@ -124,9 +124,9 @@ def get_solution_file(
 def get_test_file(
     slug: str,
     db: Session = Depends(get_db),
-    _admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user),
 ) -> Response:
-    competition = get_competition_by_slug(db, slug=slug)
+    competition = get_competition_by_slug(db, slug=slug, current_user=admin_user)
     if competition is None:
         raise HTTPException(status_code=404, detail="Competition not found.")
     if not competition.test_path or not competition.test_filename:
@@ -158,9 +158,9 @@ def get_test_file(
 def rescore_submissions(
     slug: str,
     db: Session = Depends(get_db),
-    _admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user),
 ) -> RescoreSubmissionsResponse:
-    competition = get_competition_by_slug(db, slug=slug)
+    competition = get_competition_by_slug(db, slug=slug, current_user=admin_user)
     if competition is None:
         raise HTTPException(status_code=404, detail="Competition not found.")
     if not competition.metric_script_path:
@@ -211,9 +211,9 @@ async def update_scoring_config(
     solution_file: UploadFile | None = File(default=None),
     test_file: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
-    _admin_user: User = Depends(get_admin_user),
+    admin_user: User = Depends(get_admin_user),
 ) -> ScoringConfigResponse:
-    competition = get_competition_by_slug(db, slug=slug)
+    competition = get_competition_by_slug(db, slug=slug, current_user=admin_user)
     if competition is None:
         raise HTTPException(status_code=404, detail="Competition not found.")
     if scoring_direction not in {
@@ -301,4 +301,4 @@ async def update_scoring_config(
     db.commit()
     db.refresh(competition)
 
-    return get_scoring_config(slug=slug, db=db, _admin_user=_admin_user)
+    return get_scoring_config(slug=slug, db=db, admin_user=admin_user)

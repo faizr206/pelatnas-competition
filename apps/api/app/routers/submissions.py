@@ -45,7 +45,7 @@ def list_submissions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[SubmissionResponse]:
-    competition = get_competition_by_slug(db, slug=slug)
+    competition = get_competition_by_slug(db, slug=slug, current_user=current_user)
     if competition is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Competition not found.")
 
@@ -65,7 +65,7 @@ async def submit(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> JobResponse:
-    competition = get_competition_by_slug(db, slug=slug)
+    competition = get_competition_by_slug(db, slug=slug, current_user=current_user)
     if competition is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Competition not found.")
 
@@ -175,7 +175,9 @@ def get_submission(
     return _serialize_submission(db=db, submission=submission)
 
 
-@router.patch("/submissions/{submission_id}/leaderboard-visibility", response_model=SubmissionResponse)
+@router.patch(
+    "/submissions/{submission_id}/leaderboard-visibility", response_model=SubmissionResponse
+)
 def update_submission_leaderboard_visibility(
     submission_id: str,
     payload: SubmissionLeaderboardVisibilityRequest,

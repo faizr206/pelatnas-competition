@@ -24,11 +24,11 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  getAdminCompetition,
   getAdminCompetitionSubmissions,
   getAdminSubmissionSourceFileUrl,
   getSolutionFileUrl,
   getTestFileUrl,
-  getCompetition,
   getOptionalSession,
   rescoreCompetitionSubmissions,
   getScoringConfig,
@@ -77,7 +77,7 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
         }
 
         const [loadedCompetition, loadedScoringConfig, loadedSubmissions] = await Promise.all([
-          getCompetition(slug),
+          getAdminCompetition(slug),
           getScoringConfig(slug),
           getAdminCompetitionSubmissions(slug),
         ]);

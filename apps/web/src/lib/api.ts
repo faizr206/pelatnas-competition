@@ -66,6 +66,7 @@ export async function getOptionalSession() {
 
 export async function getCompetitions() {
   const response = await fetch(`${apiBaseUrl}/competitions`, {
+    credentials: "include",
     cache: "no-store",
   });
   return expectJson<Competition[]>(response);
@@ -73,6 +74,7 @@ export async function getCompetitions() {
 
 export async function getCompetition(slug: string) {
   const response = await fetch(`${apiBaseUrl}/competitions/${slug}`, {
+    credentials: "include",
     cache: "no-store",
   });
   return expectJson<Competition>(response);
@@ -248,6 +250,24 @@ export async function getAdminCompetitionSubmissions(slug: string) {
   });
 
   return expectJson<AdminTask[]>(response);
+}
+
+export async function getAdminCompetitions() {
+  const response = await fetch(`${apiBaseUrl}/admin/competitions`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  return expectJson<Competition[]>(response);
+}
+
+export async function getAdminCompetition(slug: string) {
+  const response = await fetch(`${apiBaseUrl}/admin/competitions/${slug}`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  return expectJson<Competition>(response);
 }
 
 export function getAdminSubmissionSourceFileUrl(submissionId: string) {

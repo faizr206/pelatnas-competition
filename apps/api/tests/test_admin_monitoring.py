@@ -217,6 +217,40 @@ def test_admin_can_list_competition_submissions_and_download_source_file(client)
     assert download_response.text == "prediction\n0.1\n"
 
 
+def test_admin_can_view_upcoming_competitions_from_admin_endpoints(client) -> None:
+    _login_admin(client)
+
+    create_response = client.post(
+        "/api/v1/competitions",
+        json={
+            "slug": "future-admin-comp",
+            "title": "Future Admin Competition",
+            "description": "Only admins should see this before it starts",
+            "visibility": "public",
+            "status": "active",
+            "scoring_metric": "row_count",
+            "scoring_direction": "max",
+            "phase": {
+                "name": "main",
+                "starts_at": "2099-01-01T00:00:00Z",
+                "ends_at": "2099-12-31T00:00:00Z",
+                "submission_limit_per_day": 5,
+                "scoring_version": "v1",
+                "rules_version": "v1",
+            },
+        },
+    )
+    assert create_response.status_code == 201
+
+    list_response = client.get("/api/v1/admin/competitions")
+    assert list_response.status_code == 200
+    assert any(item["slug"] == "future-admin-comp" for item in list_response.json())
+
+    detail_response = client.get("/api/v1/admin/competitions/future-admin-comp")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["slug"] == "future-admin-comp"
+
+
 def test_admin_can_enable_and_disable_worker(client) -> None:
     _login_admin(client)
 

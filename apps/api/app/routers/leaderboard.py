@@ -15,13 +15,31 @@ router = APIRouter(prefix="/competitions/{slug}/leaderboard", tags=["leaderboard
 
 
 @router.get("", response_model=list[LeaderboardEntryResponse])
-def leaderboard(slug: str, db: Session = Depends(get_db)) -> list[LeaderboardEntryResponse]:
-    return _read_leaderboard(db=db, slug=slug, visibility_type="public")
+def leaderboard(
+    slug: str,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_current_user),
+) -> list[LeaderboardEntryResponse]:
+    return _read_leaderboard(
+        db=db,
+        slug=slug,
+        visibility_type="public",
+        current_user=current_user,
+    )
 
 
 @router.get("/public", response_model=list[LeaderboardEntryResponse])
-def public_leaderboard(slug: str, db: Session = Depends(get_db)) -> list[LeaderboardEntryResponse]:
-    return _read_leaderboard(db=db, slug=slug, visibility_type="public")
+def public_leaderboard(
+    slug: str,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_current_user),
+) -> list[LeaderboardEntryResponse]:
+    return _read_leaderboard(
+        db=db,
+        slug=slug,
+        visibility_type="public",
+        current_user=current_user,
+    )
 
 
 @router.get("/private", response_model=list[LeaderboardEntryResponse])
@@ -45,7 +63,7 @@ def _read_leaderboard(
     visibility_type: str,
     current_user: User | None = None,
 ) -> list[LeaderboardEntryResponse]:
-    competition = get_competition_by_slug(db, slug=slug)
+    competition = get_competition_by_slug(db, slug=slug, current_user=current_user)
     if competition is None:
         raise HTTPException(status_code=404, detail="Competition not found.")
 
@@ -56,11 +74,15 @@ def _read_leaderboard(
     phase_starts_at = _as_utc(phase.starts_at)
     if phase_starts_at > now:
         return []
-    if visibility_type == "private" and not _private_scores_visible_at(
-        competition=competition,
-        phase=phase,
-        now=now,
-    ) and not (current_user and current_user.is_admin):
+    if (
+        visibility_type == "private"
+        and not _private_scores_visible_at(
+            competition=competition,
+            phase=phase,
+            now=now,
+        )
+        and not (current_user and current_user.is_admin)
+    ):
         raise HTTPException(
             status_code=404,
             detail="Private leaderboard is unavailable until the configured unlock time.",

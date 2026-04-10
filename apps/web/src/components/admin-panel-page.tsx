@@ -17,9 +17,9 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  getAdminCompetitions,
   getAdminTasks,
   getAdminWorkers,
-  getCompetitions,
   getOptionalSession,
   updateAdminWorker,
 } from "@/lib/api";
@@ -47,7 +47,7 @@ export function AdminPanelPage() {
       try {
         const [currentUser, competitionList, workerList, taskList] = await Promise.all([
           getOptionalSession(),
-          getCompetitions(),
+          getAdminCompetitions(),
           getAdminWorkers(),
           getAdminTasks(),
         ]);

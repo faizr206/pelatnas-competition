@@ -4,15 +4,60 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from packages.db.models import Competition, CompetitionPhase
+from packages.db.models import Competition, CompetitionPhase, User
 
 
-def list_competitions(db: Session) -> list[Competition]:
+def list_competitions(db: Session, *, current_user: User | None = None) -> list[Competition]:
+    competitions = list(
+        db.scalars(select(Competition).order_by(Competition.created_at.desc())).all()
+    )
+    return [
+        competition
+        for competition in competitions
+        if competition_is_visible_to_user(competition, current_user=current_user)
+    ]
+
+
+def get_competition_by_slug(
+    db: Session,
+    slug: str,
+    *,
+    current_user: User | None = None,
+) -> Competition | None:
+    competition = db.scalar(select(Competition).where(Competition.slug == slug))
+    if competition is None:
+        return None
+    if not competition_is_visible_to_user(competition, current_user=current_user):
+        return None
+    return competition
+
+
+def get_admin_competition_by_slug(db: Session, slug: str) -> Competition | None:
+    return db.scalar(select(Competition).where(Competition.slug == slug))
+
+
+def list_admin_competitions(db: Session) -> list[Competition]:
     return list(db.scalars(select(Competition).order_by(Competition.created_at.desc())).all())
 
 
-def get_competition_by_slug(db: Session, slug: str) -> Competition | None:
-    return db.scalar(select(Competition).where(Competition.slug == slug))
+def competition_is_visible_to_user(
+    competition: Competition,
+    *,
+    current_user: User | None = None,
+) -> bool:
+    if current_user and current_user.is_admin:
+        return True
+    return competition_has_started(competition)
+
+
+def competition_has_started(competition: Competition) -> bool:
+    now = datetime.now(UTC)
+    phase_starts = [
+        _as_utc(phase.starts_at) for phase in competition.phases if phase.starts_at is not None
+    ]
+    if not phase_starts:
+        return True
+    return min(phase_starts) <= now
 
 
 def get_active_phase(db: Session, competition_id: str) -> CompetitionPhase | None:
@@ -93,3 +138,9 @@ def _normalize_submission_mode_payload(payload: dict[str, Any]) -> None:
     elif submission_mode == "code_submission":
         payload["allow_csv_submissions"] = False
         payload["allow_notebook_submissions"] = True
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
