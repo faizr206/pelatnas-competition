@@ -71,6 +71,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
         competition?.private_leaderboard_opens_at ?? selectedPhase?.ends_at ?? "",
       ).getTime() < Date.now()
     : false;
+  const canAccessPrivateLeaderboard = privateLeaderboardOpen || Boolean(user?.is_admin);
   const visibleLeaderboard =
     leaderboardVisibility === "public" ? publicLeaderboard : privateLeaderboard;
 
@@ -161,7 +162,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
 
   useEffect(() => {
     if (
-      !privateLeaderboardOpen ||
+      !canAccessPrivateLeaderboard ||
       leaderboardVisibility !== "private" ||
       privateLeaderboard.length > 0
     ) {
@@ -192,7 +193,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
     return () => {
       active = false;
     };
-  }, [leaderboardVisibility, privateLeaderboard.length, privateLeaderboardOpen, slug]);
+  }, [canAccessPrivateLeaderboard, leaderboardVisibility, privateLeaderboard.length, slug]);
 
   useEffect(() => {
     if (!user || !activeJob || !activeJobStatuses.has(activeJob.status)) {
@@ -215,7 +216,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
         const refreshedPublicLeaderboard = await getLeaderboard(slug, "public");
         setPublicLeaderboard(refreshedPublicLeaderboard);
 
-        if (privateLeaderboardOpen && leaderboardVisibility === "private") {
+        if (canAccessPrivateLeaderboard && leaderboardVisibility === "private") {
           const refreshedPrivateLeaderboard = await getLeaderboard(slug, "private");
           setPrivateLeaderboard(refreshedPrivateLeaderboard);
         }
@@ -227,7 +228,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [activeJob, leaderboardVisibility, privateLeaderboardOpen, slug, user]);
+  }, [activeJob, canAccessPrivateLeaderboard, leaderboardVisibility, slug, user]);
 
   async function refreshSignedInResources() {
     if (!user) {
@@ -271,7 +272,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
       const refreshedPublicLeaderboard = await getLeaderboard(slug, "public");
       setPublicLeaderboard(refreshedPublicLeaderboard);
 
-      if (privateLeaderboardOpen && leaderboardVisibility === "private") {
+      if (canAccessPrivateLeaderboard && leaderboardVisibility === "private") {
         const refreshedPrivateLeaderboard = await getLeaderboard(slug, "private");
         setPrivateLeaderboard(refreshedPrivateLeaderboard);
       }
@@ -317,7 +318,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
       const refreshedPublicLeaderboard = await getLeaderboard(slug, "public");
       setPublicLeaderboard(refreshedPublicLeaderboard);
 
-      if (privateLeaderboardOpen && leaderboardVisibility === "private") {
+      if (canAccessPrivateLeaderboard && leaderboardVisibility === "private") {
         const refreshedPrivateLeaderboard = await getLeaderboard(slug, "private");
         setPrivateLeaderboard(refreshedPrivateLeaderboard);
       }
@@ -415,9 +416,6 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
               <h1 className="text-[2rem] font-semibold tracking-[-0.04em] text-black md:text-[3.5rem] md:leading-[1.05]">
                 {competition.title}
               </h1>
-              <p className="mt-1 text-xl font-semibold tracking-[-0.03em] text-black md:text-[2rem]">
-                {competition.description}
-              </p>
             </div>
             <div className="flex flex-wrap gap-3">
               {user?.is_admin ? (
@@ -493,10 +491,12 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
             {activeTab === "leaderboard" ? (
               <LeaderboardTab
                 competition={competition}
+                canAccessPrivateLeaderboard={canAccessPrivateLeaderboard}
                 privateLeaderboardOpen={privateLeaderboardOpen}
                 entries={visibleLeaderboard}
                 leaderboardVisibility={leaderboardVisibility}
                 onVisibilityChange={setLeaderboardVisibility}
+                user={user}
               />
             ) : null}
 
@@ -740,17 +740,21 @@ function DataTab({
 }
 
 function LeaderboardTab({
+  canAccessPrivateLeaderboard,
   competition,
   privateLeaderboardOpen,
   entries,
   leaderboardVisibility,
   onVisibilityChange,
+  user,
 }: {
+  canAccessPrivateLeaderboard: boolean;
   competition: Competition;
   privateLeaderboardOpen: boolean;
   entries: LeaderboardEntry[];
   leaderboardVisibility: LeaderboardVisibility;
   onVisibilityChange: (visibility: LeaderboardVisibility) => void;
+  user: User | null;
 }) {
   return (
     <div className="space-y-6">
@@ -773,7 +777,7 @@ function LeaderboardTab({
             <button
               type="button"
               className={toggleClass(leaderboardVisibility === "private")}
-              disabled={!privateLeaderboardOpen}
+              disabled={!canAccessPrivateLeaderboard}
               onClick={() => onVisibilityChange("private")}
             >
               Private
@@ -785,9 +789,14 @@ function LeaderboardTab({
           <MetricCard label="Ranking rule" value={competition.best_submission_rule} />
           <MetricCard label="Metric direction" value={competition.scoring_direction} />
         </div>
-        {!privateLeaderboardOpen ? (
+        {!privateLeaderboardOpen && !user?.is_admin ? (
           <div className="border-b border-[#efefef] px-6 py-4 text-sm text-[#6b6b6b]">
             Private leaderboard results appear after the configured unlock time.
+          </div>
+        ) : null}
+        {!privateLeaderboardOpen && user?.is_admin ? (
+          <div className="border-b border-[#efefef] px-6 py-4 text-sm text-[#6b6b6b]">
+            Private leaderboard results are visible to admins before the configured unlock time.
           </div>
         ) : null}
         <div className="px-6 pb-6 pt-3">

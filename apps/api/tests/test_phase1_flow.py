@@ -299,8 +299,12 @@ def test_private_leaderboard_unlocks_after_phase_end_and_late_submissions_do_not
     assert first_submission_response.status_code == 202
     process_submission_job(first_submission_response.json()["id"])
 
+    logout_response = client.post("/api/v1/auth/logout")
+    assert logout_response.status_code == 204
     private_before_end = client.get("/api/v1/competitions/freeze-comp/leaderboard/private")
     assert private_before_end.status_code == 404
+
+    _login_admin(client)
 
     with session_scope() as session:
         competition = session.scalar(select(Competition).where(Competition.slug == "freeze-comp"))
@@ -341,6 +345,63 @@ def test_private_leaderboard_unlocks_after_phase_end_and_late_submissions_do_not
 
     private_leaderboard_response = client.get(
         "/api/v1/competitions/freeze-comp/leaderboard/private"
+    )
+    assert private_leaderboard_response.status_code == 200
+    private_leaderboard_payload = private_leaderboard_response.json()
+    assert len(private_leaderboard_payload) == 1
+    assert private_leaderboard_payload[0]["score_value"] == 3.0
+
+
+def test_admin_can_view_private_leaderboard_before_unlock(client, monkeypatch) -> None:
+    _login_admin(client)
+
+    competition_response = client.post(
+        "/api/v1/competitions",
+        json={
+            "slug": "admin-private-comp",
+            "title": "Admin Private Competition",
+            "description": "Admins can inspect private standings early",
+            "visibility": "public",
+            "status": "active",
+            "scoring_metric": "row_count",
+            "scoring_direction": "max",
+            "private_leaderboard_opens_at": "2099-01-15T00:00:00Z",
+            "phase": {
+                "name": "main",
+                "starts_at": "2020-01-01T00:00:00Z",
+                "ends_at": "2099-12-31T00:00:00Z",
+                "submission_limit_per_day": 5,
+                "scoring_version": "v1",
+                "rules_version": "v1",
+            },
+        },
+    )
+    assert competition_response.status_code == 201
+
+    from apps.worker.worker import queue as worker_queue
+
+    monkeypatch.setattr(
+        worker_queue.process_submission_task,
+        "apply_async",
+        lambda args: DummyAsyncResult(),
+    )
+
+    submission_response = client.post(
+        "/api/v1/competitions/admin-private-comp/submissions",
+        data={"submission_type": "csv"},
+        files={
+            "source_file": (
+                "submission.csv",
+                BytesIO(b"prediction\n0.1\n0.2\n0.3\n"),
+                "text/csv",
+            )
+        },
+    )
+    assert submission_response.status_code == 202
+    process_submission_job(submission_response.json()["id"])
+
+    private_leaderboard_response = client.get(
+        "/api/v1/competitions/admin-private-comp/leaderboard/private"
     )
     assert private_leaderboard_response.status_code == 200
     private_leaderboard_payload = private_leaderboard_response.json()
@@ -424,10 +485,14 @@ def score_submission(solution_rows, submission_rows):
     assert submission_response.status_code == 202
     process_submission_job(submission_response.json()["id"])
 
+    logout_response = client.post("/api/v1/auth/logout")
+    assert logout_response.status_code == 204
     private_before_unlock = client.get(
         "/api/v1/competitions/manual-unlock-comp/leaderboard/private"
     )
     assert private_before_unlock.status_code == 404
+
+    _login_admin(client)
 
     with session_scope() as session:
         competition = session.scalar(

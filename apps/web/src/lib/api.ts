@@ -98,6 +98,7 @@ export async function getLeaderboard(slug: string, visibility: LeaderboardVisibi
   const response = await fetch(
     `${apiBaseUrl}/competitions/${slug}/leaderboard/${visibility}`,
     {
+      credentials: "include",
       cache: "no-store",
     },
   );

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from apps.api.app.dependencies.auth import get_optional_current_user
 from apps.api.app.dependencies.db import get_db
 from apps.api.app.repositories.competitions import get_active_phase, get_competition_by_slug
 from apps.api.app.schemas.leaderboard import LeaderboardEntryResponse
@@ -24,12 +25,25 @@ def public_leaderboard(slug: str, db: Session = Depends(get_db)) -> list[Leaderb
 
 
 @router.get("/private", response_model=list[LeaderboardEntryResponse])
-def private_leaderboard(slug: str, db: Session = Depends(get_db)) -> list[LeaderboardEntryResponse]:
-    return _read_leaderboard(db=db, slug=slug, visibility_type="private")
+def private_leaderboard(
+    slug: str,
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_current_user),
+) -> list[LeaderboardEntryResponse]:
+    return _read_leaderboard(
+        db=db,
+        slug=slug,
+        visibility_type="private",
+        current_user=current_user,
+    )
 
 
 def _read_leaderboard(
-    *, db: Session, slug: str, visibility_type: str
+    *,
+    db: Session,
+    slug: str,
+    visibility_type: str,
+    current_user: User | None = None,
 ) -> list[LeaderboardEntryResponse]:
     competition = get_competition_by_slug(db, slug=slug)
     if competition is None:
@@ -46,7 +60,7 @@ def _read_leaderboard(
         competition=competition,
         phase=phase,
         now=now,
-    ):
+    ) and not (current_user and current_user.is_admin):
         raise HTTPException(
             status_code=404,
             detail="Private leaderboard is unavailable until the configured unlock time.",
