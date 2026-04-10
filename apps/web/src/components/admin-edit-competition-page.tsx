@@ -440,9 +440,14 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
                   competitionSubmissions.map((submission) => (
                     <TableRow key={submission.submission_id}>
                       <TableCell>
-                        <div className="font-medium text-[#111111]">
+                        <a
+                          className="font-medium text-[#111111] underline-offset-4 hover:underline"
+                          href={getAdminSubmissionSourceFileUrl(submission.submission_id)}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
                           {submission.source_original_filename}
-                        </div>
+                        </a>
                         <div className="mt-1 text-xs text-[#7a7a7a]">
                           {submission.submission_type.toUpperCase()} · {formatBytes(submission.source_size_bytes)}
                         </div>

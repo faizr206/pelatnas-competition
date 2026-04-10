@@ -522,12 +522,6 @@ def test_hidden_admin_submissions_are_excluded_from_leaderboard(client, monkeypa
     )
     assert competition_response.status_code == 201
 
-    hide_response = client.patch(
-        "/api/v1/auth/me/leaderboard-visibility",
-        json={"hide_from_leaderboard": True},
-    )
-    assert hide_response.status_code == 200
-
     from apps.worker.worker import queue as worker_queue
 
     monkeypatch.setattr(
@@ -549,6 +543,16 @@ def test_hidden_admin_submissions_are_excluded_from_leaderboard(client, monkeypa
     )
     assert submission_response.status_code == 202
     process_submission_job(submission_response.json()["id"])
+
+    visible_leaderboard_response = client.get("/api/v1/competitions/hidden-admin-comp/leaderboard/public")
+    assert visible_leaderboard_response.status_code == 200
+    assert len(visible_leaderboard_response.json()) == 1
+
+    hide_response = client.patch(
+        "/api/v1/auth/me/leaderboard-visibility",
+        json={"hide_from_leaderboard": True},
+    )
+    assert hide_response.status_code == 200
 
     leaderboard_response = client.get("/api/v1/competitions/hidden-admin-comp/leaderboard/public")
     assert leaderboard_response.status_code == 200

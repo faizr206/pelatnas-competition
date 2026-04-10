@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.api.app.config import get_settings
@@ -15,7 +16,8 @@ from apps.api.app.services.auth import (
     change_user_password,
     validate_new_password,
 )
-from packages.db.models import User
+from packages.leaderboard.service import refresh_leaderboard
+from packages.db.models import Competition, Submission, User
 from packages.security.login_rate_limit import login_rate_limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -107,6 +109,28 @@ def update_leaderboard_visibility(
 
     current_user.hide_from_leaderboard = payload.hide_from_leaderboard
     db.add(current_user)
+    db.flush()
+    affected_pairs = db.execute(
+        select(Submission.competition_id, Submission.phase_id)
+        .where(Submission.user_id == current_user.id)
+        .distinct()
+    ).all()
+    for competition_id, phase_id in affected_pairs:
+        competition = db.get(Competition, competition_id)
+        if competition is None:
+            continue
+        refresh_leaderboard(
+            db,
+            competition=competition,
+            phase_id=phase_id,
+            visibility_type="public",
+        )
+        refresh_leaderboard(
+            db,
+            competition=competition,
+            phase_id=phase_id,
+            visibility_type="private",
+        )
     db.commit()
     db.refresh(current_user)
     return UserResponse.model_validate(current_user)
