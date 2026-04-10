@@ -3,7 +3,7 @@
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0010_private_leaderboard_opens_at"
+revision = "0010_private_lb_unlock"
 down_revision = "0009_scoring_test_file"
 branch_labels = None
 depends_on = None
