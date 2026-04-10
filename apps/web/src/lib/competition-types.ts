@@ -4,6 +4,7 @@ export type User = {
   display_name: string;
   status: string;
   is_admin: boolean;
+  hide_from_leaderboard: boolean;
   must_change_password: boolean;
 };
 
@@ -40,6 +41,7 @@ export type AdminTask = {
   submission_type: string;
   submission_status: string;
   source_original_filename: string;
+  source_size_bytes: number;
   created_at: string;
   latest_job: Job | null;
   latest_score: {

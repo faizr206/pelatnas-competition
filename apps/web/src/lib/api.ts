@@ -168,6 +168,19 @@ export async function changePassword(currentPassword: string, newPassword: strin
   return expectJson<User>(response);
 }
 
+export async function updateOwnLeaderboardVisibility(hideFromLeaderboard: boolean) {
+  const response = await fetch(`${apiBaseUrl}/auth/me/leaderboard-visibility`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ hide_from_leaderboard: hideFromLeaderboard }),
+  });
+
+  return expectJson<User>(response);
+}
+
 export async function getAdminUsers() {
   const response = await fetch(`${apiBaseUrl}/admin/users`, {
     credentials: "include",
@@ -206,6 +219,19 @@ export async function getAdminTasks() {
   });
 
   return expectJson<AdminTask[]>(response);
+}
+
+export async function getAdminCompetitionSubmissions(slug: string) {
+  const response = await fetch(`${apiBaseUrl}/admin/competitions/${slug}/submissions`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  return expectJson<AdminTask[]>(response);
+}
+
+export function getAdminSubmissionSourceFileUrl(submissionId: string) {
+  return `${apiBaseUrl}/admin/submissions/${submissionId}/source-file`;
 }
 
 export async function createAdminUser(payload: {

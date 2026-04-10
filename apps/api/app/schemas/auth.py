@@ -19,4 +19,9 @@ class UserResponse(BaseModel):
     display_name: str
     status: str
     is_admin: bool
+    hide_from_leaderboard: bool
     must_change_password: bool
+
+
+class LeaderboardVisibilityPreferenceRequest(BaseModel):
+    hide_from_leaderboard: bool

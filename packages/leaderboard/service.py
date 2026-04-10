@@ -7,7 +7,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from packages.core.constants import ScoringDirection
-from packages.db.models import Competition, LeaderboardEntry, Score, Submission
+from packages.db.models import Competition, LeaderboardEntry, Score, Submission, User
 
 
 @dataclass(frozen=True)
@@ -28,9 +28,11 @@ def refresh_leaderboard(
         for submission, score in db.execute(
             select(Submission, Score)
             .join(Score, Score.submission_id == Submission.id)
+            .join(User, User.id == Submission.user_id)
             .where(Submission.competition_id == competition.id)
             .where(Submission.phase_id == phase_id)
             .where(Submission.is_late_submission.is_(False))
+            .where(User.hide_from_leaderboard.is_(False))
         ).all()
     ]
 

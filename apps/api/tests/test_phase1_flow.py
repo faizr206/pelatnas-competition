@@ -495,3 +495,61 @@ def test_submission_job_is_committed_before_worker_can_process_it(client, monkey
     )
     assert submission_response.status_code == 202
     assert submission_response.json()["status"] == "completed"
+
+
+def test_hidden_admin_submissions_are_excluded_from_leaderboard(client, monkeypatch) -> None:
+    _login_admin(client)
+
+    competition_response = client.post(
+        "/api/v1/competitions",
+        json={
+            "slug": "hidden-admin-comp",
+            "title": "Hidden Admin Competition",
+            "description": "Admin can hide own submissions from leaderboard",
+            "visibility": "public",
+            "status": "active",
+            "scoring_metric": "row_count",
+            "scoring_direction": "max",
+            "phase": {
+                "name": "main",
+                "starts_at": "2026-01-01T00:00:00Z",
+                "ends_at": "2099-12-31T00:00:00Z",
+                "submission_limit_per_day": 5,
+                "scoring_version": "v1",
+                "rules_version": "v1",
+            },
+        },
+    )
+    assert competition_response.status_code == 201
+
+    hide_response = client.patch(
+        "/api/v1/auth/me/leaderboard-visibility",
+        json={"hide_from_leaderboard": True},
+    )
+    assert hide_response.status_code == 200
+
+    from apps.worker.worker import queue as worker_queue
+
+    monkeypatch.setattr(
+        worker_queue.process_submission_task,
+        "apply_async",
+        lambda args: DummyAsyncResult(),
+    )
+
+    submission_response = client.post(
+        "/api/v1/competitions/hidden-admin-comp/submissions",
+        data={"submission_type": "csv"},
+        files={
+            "source_file": (
+                "submission.csv",
+                BytesIO(b"prediction\n0.1\n0.2\n0.3\n"),
+                "text/csv",
+            )
+        },
+    )
+    assert submission_response.status_code == 202
+    process_submission_job(submission_response.json()["id"])
+
+    leaderboard_response = client.get("/api/v1/competitions/hidden-admin-comp/leaderboard/public")
+    assert leaderboard_response.status_code == 200
+    assert leaderboard_response.json() == []

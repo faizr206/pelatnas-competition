@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.api.app.dependencies.auth import get_admin_user
 from apps.api.app.dependencies.db import get_db
+from apps.api.app.repositories.competitions import get_competition_by_slug
 from apps.api.app.repositories.jobs import get_latest_job_for_submission
 from apps.api.app.repositories.scores import get_latest_score_for_submission
 from apps.api.app.schemas.admin_monitoring import (
@@ -14,6 +16,7 @@ from apps.api.app.schemas.admin_monitoring import (
 from apps.api.app.schemas.jobs import JobResponse
 from apps.api.app.schemas.submissions import ScoreSummaryResponse
 from packages.db.models import Competition, Job, Submission, User
+from packages.storage.service import build_attachment_content_disposition, get_object
 from packages.workers.service import (
     list_worker_nodes,
     upsert_worker_node,
@@ -140,37 +143,105 @@ def list_tasks(
         .order_by(Submission.created_at.desc())
     ).all()
 
-    tasks: list[AdminTaskResponse] = []
-    for submission, competition, participant in rows:
-        latest_job = get_latest_job_for_submission(db, submission_id=submission.id)
-        latest_score = get_latest_score_for_submission(db, submission_id=submission.id)
-        tasks.append(
-            AdminTaskResponse(
-                submission_id=submission.id,
-                competition_id=competition.id,
-                competition_slug=competition.slug,
-                competition_title=competition.title,
-                participant_id=participant.id,
-                participant_email=participant.email,
-                participant_name=participant.display_name,
-                submission_type=submission.submission_type,
-                submission_status=submission.status,
-                source_original_filename=submission.source_original_filename,
-                created_at=submission.created_at,
-                latest_job=None if latest_job is None else JobResponse.model_validate(latest_job),
-                latest_score=(
-                    None
-                    if latest_score is None
-                    else ScoreSummaryResponse(
-                        metric_name=latest_score.metric_name,
-                        metric_value=latest_score.metric_value,
-                        score_value=latest_score.score_value,
-                        public_score_value=latest_score.public_score_value,
-                        private_score_value=latest_score.private_score_value,
-                        scoring_version=latest_score.scoring_version,
-                    )
-                ),
-            )
+    return [
+        _serialize_admin_task(
+            db=db,
+            submission=submission,
+            competition=competition,
+            participant=participant,
         )
+        for submission, competition, participant in rows
+    ]
 
-    return tasks
+
+@router.get("/competitions/{slug}/submissions", response_model=list[AdminTaskResponse])
+def list_competition_submissions(
+    slug: str,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+) -> list[AdminTaskResponse]:
+    competition = get_competition_by_slug(db, slug=slug)
+    if competition is None:
+        raise HTTPException(status_code=404, detail="Competition not found.")
+
+    rows = db.execute(
+        select(Submission, Competition, User)
+        .join(Competition, Competition.id == Submission.competition_id)
+        .join(User, User.id == Submission.user_id)
+        .where(Competition.id == competition.id)
+        .order_by(Submission.created_at.desc())
+    ).all()
+    return [
+        _serialize_admin_task(
+            db=db,
+            submission=submission,
+            competition=competition_row,
+            participant=participant,
+        )
+        for submission, competition_row, participant in rows
+    ]
+
+
+@router.get("/submissions/{submission_id}/source-file")
+def get_submission_source_file(
+    submission_id: str,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    submission = db.get(Submission, submission_id)
+    if submission is None:
+        raise HTTPException(status_code=404, detail="Submission not found.")
+
+    try:
+        stored = get_object(submission.source_archive_path)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Submission source file not found.") from exc
+
+    return Response(
+        content=stored.body,
+        media_type=stored.content_type,
+        headers={
+            "Content-Disposition": build_attachment_content_disposition(
+                submission.source_original_filename,
+                fallback="submission.bin",
+            )
+        },
+    )
+
+
+def _serialize_admin_task(
+    *,
+    db: Session,
+    submission: Submission,
+    competition: Competition,
+    participant: User,
+) -> AdminTaskResponse:
+    latest_job = get_latest_job_for_submission(db, submission_id=submission.id)
+    latest_score = get_latest_score_for_submission(db, submission_id=submission.id)
+    return AdminTaskResponse(
+        submission_id=submission.id,
+        competition_id=competition.id,
+        competition_slug=competition.slug,
+        competition_title=competition.title,
+        participant_id=participant.id,
+        participant_email=participant.email,
+        participant_name=participant.display_name,
+        submission_type=submission.submission_type,
+        submission_status=submission.status,
+        source_original_filename=submission.source_original_filename,
+        source_size_bytes=submission.source_size_bytes,
+        created_at=submission.created_at,
+        latest_job=None if latest_job is None else JobResponse.model_validate(latest_job),
+        latest_score=(
+            None
+            if latest_score is None
+            else ScoreSummaryResponse(
+                metric_name=latest_score.metric_name,
+                metric_value=latest_score.metric_value,
+                score_value=latest_score.score_value,
+                public_score_value=latest_score.public_score_value,
+                private_score_value=latest_score.private_score_value,
+                scoring_version=latest_score.scoring_version,
+            )
+        ),
+    )

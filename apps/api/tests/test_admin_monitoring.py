@@ -12,6 +12,7 @@ from packages.db.models import (
     WorkerNode,
 )
 from packages.db.session import session_scope
+from packages.storage.service import save_text_file
 
 
 def _login_admin(client) -> None:
@@ -152,6 +153,68 @@ def test_admin_can_view_workers_and_tasks(client) -> None:
     assert tasks[0]["latest_job"]["status"] == "failed"
     assert tasks[1]["participant_email"] == "participant@example.com"
     assert tasks[1]["latest_score"]["score_value"] == 42.0
+    assert tasks[1]["source_size_bytes"] == 128
+
+
+def test_admin_can_list_competition_submissions_and_download_source_file(client) -> None:
+    _login_admin(client)
+
+    with session_scope() as session:
+        competition = session.scalar(select(Competition).where(Competition.slug == "test-comp"))
+        if competition is None:
+            raise AssertionError("Expected bootstrap competition to exist.")
+
+        phase = session.scalar(
+            select(CompetitionPhase).where(CompetitionPhase.competition_id == competition.id)
+        )
+        if phase is None:
+            raise AssertionError("Expected bootstrap phase to exist.")
+
+        participant = User(
+            email="viewer@example.com",
+            display_name="Viewer Participant",
+            password_hash=hash_password("viewer-pass-123"),
+            status="active",
+            is_admin=False,
+        )
+        session.add(participant)
+        session.flush()
+
+        source_key = save_text_file(
+            "",
+            category="submissions",
+            competition_slug=competition.slug,
+            filename="source.csv",
+            contents="prediction\n0.1\n",
+        )
+        submission = Submission(
+            competition_id=competition.id,
+            phase_id=phase.id,
+            user_id=participant.id,
+            submission_type="csv",
+            source_archive_path=source_key,
+            manifest_path=None,
+            source_original_filename="source.csv",
+            source_content_type="text/csv",
+            source_checksum="checksum-1",
+            source_size_bytes=15,
+            status="completed",
+        )
+        session.add(submission)
+        session.flush()
+        submission_id = submission.id
+
+    list_response = client.get("/api/v1/admin/competitions/test-comp/submissions")
+    assert list_response.status_code == 200
+    payload = list_response.json()
+    assert len(payload) == 1
+    assert payload[0]["source_original_filename"] == "source.csv"
+    assert payload[0]["participant_email"] == "viewer@example.com"
+    assert payload[0]["source_size_bytes"] == 15
+
+    download_response = client.get(f"/api/v1/admin/submissions/{submission_id}/source-file")
+    assert download_response.status_code == 200
+    assert download_response.text == "prediction\n0.1\n"
 
 
 def test_admin_can_enable_and_disable_worker(client) -> None:

@@ -36,6 +36,7 @@ class AdminTaskResponse(BaseModel):
     submission_type: str
     submission_status: str
     source_original_filename: str
+    source_size_bytes: int
     created_at: datetime
     latest_job: JobResponse | None = None
     latest_score: ScoreSummaryResponse | None = None

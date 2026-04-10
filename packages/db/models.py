@@ -30,6 +30,7 @@ class User(TimestampMixin, Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="active")
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    hide_from_leaderboard: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     password_changed_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

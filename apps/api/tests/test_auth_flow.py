@@ -23,6 +23,7 @@ def test_login_me_logout_flow(client) -> None:
     assert response.status_code == 200
     assert response.json()["display_name"] == "Phase Zero Admin"
     assert response.json()["must_change_password"] is False
+    assert response.json()["hide_from_leaderboard"] is False
 
     response = client.post("/api/v1/auth/logout")
     assert response.status_code == 204
@@ -92,3 +93,18 @@ def test_session_cookie_can_be_marked_secure(tmp_path: Path, monkeypatch) -> Non
         get_storage.cache_clear()
         login_rate_limiter.reset()
         importlib.reload(main_module)
+
+
+def test_admin_can_hide_own_submissions_from_leaderboard(client) -> None:
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "admin@example.com", "password": "admin1234"},
+    )
+    assert response.status_code == 200
+
+    update_response = client.patch(
+        "/api/v1/auth/me/leaderboard-visibility",
+        json={"hide_from_leaderboard": True},
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["hide_from_leaderboard"] is True

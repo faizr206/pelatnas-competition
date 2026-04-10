@@ -4,7 +4,12 @@ from sqlalchemy.orm import Session
 from apps.api.app.config import get_settings
 from apps.api.app.dependencies.auth import get_current_user
 from apps.api.app.dependencies.db import get_db
-from apps.api.app.schemas.auth import ChangePasswordRequest, LoginRequest, UserResponse
+from apps.api.app.schemas.auth import (
+    ChangePasswordRequest,
+    LeaderboardVisibilityPreferenceRequest,
+    LoginRequest,
+    UserResponse,
+)
 from apps.api.app.services.auth import (
     authenticate_user,
     change_user_password,
@@ -86,3 +91,22 @@ def change_password(
 def logout(request: Request) -> Response:
     request.session.clear()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/me/leaderboard-visibility", response_model=UserResponse)
+def update_leaderboard_visibility(
+    payload: LeaderboardVisibilityPreferenceRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserResponse:
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can hide their submissions from the leaderboard.",
+        )
+
+    current_user.hide_from_leaderboard = payload.hide_from_leaderboard
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return UserResponse.model_validate(current_user)

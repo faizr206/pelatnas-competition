@@ -14,8 +14,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  getAdminCompetitionSubmissions,
+  getAdminSubmissionSourceFileUrl,
   getSolutionFileUrl,
   getTestFileUrl,
   getCompetition,
@@ -25,7 +35,7 @@ import {
   updateCompetition,
   updateScoringConfig,
 } from "@/lib/api";
-import type { Competition, ScoringConfig, User } from "@/lib/competition-types";
+import type { AdminTask, Competition, ScoringConfig, User } from "@/lib/competition-types";
 
 type AdminEditCompetitionPageProps = {
   slug: string;
@@ -46,6 +56,7 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
   const [scoringMessage, setScoringMessage] = useState<string | null>(null);
   const [scoringBusy, setScoringBusy] = useState(false);
   const [rescoreBusy, setRescoreBusy] = useState(false);
+  const [competitionSubmissions, setCompetitionSubmissions] = useState<AdminTask[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -65,9 +76,10 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
           return;
         }
 
-        const [loadedCompetition, loadedScoringConfig] = await Promise.all([
+        const [loadedCompetition, loadedScoringConfig, loadedSubmissions] = await Promise.all([
           getCompetition(slug),
           getScoringConfig(slug),
+          getAdminCompetitionSubmissions(slug),
         ]);
         if (!active) {
           return;
@@ -77,6 +89,7 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
         setForm(competitionFormFromCompetition(loadedCompetition));
         setScoringConfig(loadedScoringConfig);
         setScoringCode(loadedScoringConfig.metric_code ?? "");
+        setCompetitionSubmissions(loadedSubmissions);
       } catch (loadError) {
         if (!active) {
           return;
@@ -395,8 +408,87 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
               </div>
             </form>
           </div>
+
+          <div className="mt-8 border-t border-[#efefef] pt-8">
+            <div className="mb-6 flex flex-col gap-2">
+              <h3 className="text-base font-semibold tracking-[-0.02em] text-black">
+                Competition Submissions
+              </h3>
+              <p className="text-sm text-[#6f6f6f]">
+                Review every uploaded source file for this competition and download the original submission directly from admin.
+              </p>
+            </div>
+
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>File</TableHead>
+                  <TableHead>Participant</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Submitted</TableHead>
+                  <TableHead>Download</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {competitionSubmissions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-sm text-[#757575]">
+                      No submissions have been uploaded for this competition yet.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  competitionSubmissions.map((submission) => (
+                    <TableRow key={submission.submission_id}>
+                      <TableCell>
+                        <div className="font-medium text-[#111111]">
+                          {submission.source_original_filename}
+                        </div>
+                        <div className="mt-1 text-xs text-[#7a7a7a]">
+                          {submission.submission_type.toUpperCase()} · {formatBytes(submission.source_size_bytes)}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium text-[#111111]">
+                          {submission.participant_name}
+                        </div>
+                        <div className="mt-1 text-xs text-[#7a7a7a]">
+                          {submission.participant_email}
+                        </div>
+                      </TableCell>
+                      <TableCell>{submission.submission_status}</TableCell>
+                      <TableCell>{formatDateTime(submission.created_at)}</TableCell>
+                      <TableCell>
+                        <a
+                          className="text-sm font-medium text-[#111111] underline-offset-4 hover:underline"
+                          href={getAdminSubmissionSourceFileUrl(submission.submission_id)}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          Download file
+                        </a>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
     </AdminPageShell>
   );
+}
+
+function formatBytes(size: number) {
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString();
 }

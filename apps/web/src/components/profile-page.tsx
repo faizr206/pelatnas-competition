@@ -9,7 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { changePassword, getOptionalSession } from "@/lib/api";
+import {
+  changePassword,
+  getOptionalSession,
+  updateOwnLeaderboardVisibility,
+} from "@/lib/api";
 import type { User } from "@/lib/competition-types";
 
 export function ProfilePage() {
@@ -20,6 +24,8 @@ export function ProfilePage() {
   const [newPassword, setNewPassword] = useState("");
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [leaderboardMessage, setLeaderboardMessage] = useState<string | null>(null);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -78,6 +84,31 @@ export function ProfilePage() {
             changePasswordError instanceof Error
               ? changePasswordError.message
               : "Failed to update the password.",
+          );
+        }
+      })();
+    });
+  }
+
+  function handleLeaderboardVisibilityChange(nextValue: boolean) {
+    setLeaderboardError(null);
+    setLeaderboardMessage(null);
+
+    startTransition(() => {
+      void (async () => {
+        try {
+          const updatedUser = await updateOwnLeaderboardVisibility(nextValue);
+          setUser(updatedUser);
+          setLeaderboardMessage(
+            updatedUser.hide_from_leaderboard
+              ? "Your submissions are now hidden from leaderboard rankings."
+              : "Your submissions are now visible on leaderboard rankings.",
+          );
+        } catch (updateError) {
+          setLeaderboardError(
+            updateError instanceof Error
+              ? updateError.message
+              : "Failed to update leaderboard visibility.",
           );
         }
       })();
@@ -225,6 +256,36 @@ export function ProfilePage() {
                   </div>
                 </form>
               </section>
+
+              {user.is_admin ? (
+                <section className="mt-8 rounded-2xl border border-[#efefef] bg-[#fafafa] p-5">
+                  <div className="max-w-xl">
+                    <h3 className="text-base font-semibold text-black">Leaderboard Visibility</h3>
+                    <p className="mt-2 text-sm text-[#6f6f6f]">
+                      Hide your own admin submissions from competition leaderboards without affecting scoring or submission history.
+                    </p>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap items-center gap-4">
+                    <label className="flex items-center gap-3 rounded-2xl border border-[#ececec] bg-white px-4 py-3 text-sm text-[#303030]">
+                      <input
+                        checked={user.hide_from_leaderboard}
+                        onChange={(event) =>
+                          handleLeaderboardVisibilityChange(event.target.checked)
+                        }
+                        type="checkbox"
+                      />
+                      Hide my submissions from leaderboards
+                    </label>
+                    {leaderboardMessage ? (
+                      <p className="text-sm text-[#2d6a4f]">{leaderboardMessage}</p>
+                    ) : null}
+                    {leaderboardError ? (
+                      <p className="text-sm text-[#b14d4d]">{leaderboardError}</p>
+                    ) : null}
+                  </div>
+                </section>
+              ) : null}
 
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button
