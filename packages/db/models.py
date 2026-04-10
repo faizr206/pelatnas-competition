@@ -63,6 +63,8 @@ class Competition(TimestampMixin, Base):
     artifact_retention_days: Mapped[int] = mapped_column(Integer, nullable=False, default=14)
     solution_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     solution_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    test_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    test_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     metric_script_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     metric_script_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     phases: Mapped[list[CompetitionPhase]] = relationship(

@@ -76,6 +76,7 @@ export type Competition = {
   log_retention_days: number;
   artifact_retention_days: number;
   solution_filename: string | null;
+  test_filename: string | null;
   metric_script_filename: string | null;
   phases: CompetitionPhase[];
 };
@@ -128,6 +129,7 @@ export type ScoringConfig = {
   scoring_metric: string;
   scoring_direction: string;
   solution_filename: string | null;
+  test_filename: string | null;
   metric_script_filename: string | null;
   metric_code: string | null;
   templates: MetricTemplate[];

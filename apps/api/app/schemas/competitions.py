@@ -90,5 +90,6 @@ class CompetitionResponse(BaseModel):
     log_retention_days: int
     artifact_retention_days: int
     solution_filename: str | None
+    test_filename: str | None
     metric_script_filename: str | None
     phases: list[CompetitionPhaseResponse]

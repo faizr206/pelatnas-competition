@@ -56,6 +56,14 @@ def get_scoring_config(
             competition.metric_script_filename = None
             db.commit()
             db.refresh(competition)
+    if competition.test_path:
+        try:
+            get_object(competition.test_path)
+        except FileNotFoundError:
+            competition.test_path = None
+            competition.test_filename = None
+            db.commit()
+            db.refresh(competition)
 
     templates = [
         MetricTemplateResponse(
@@ -74,6 +82,7 @@ def get_scoring_config(
         scoring_metric=competition.scoring_metric,
         scoring_direction=competition.scoring_direction,
         solution_filename=competition.solution_filename,
+        test_filename=competition.test_filename,
         metric_script_filename=competition.metric_script_filename,
         metric_code=metric_code,
         templates=templates,
@@ -106,6 +115,37 @@ def get_solution_file(
             "Content-Disposition": build_attachment_content_disposition(
                 competition.solution_filename,
                 fallback="solution.csv",
+            )
+        },
+    )
+
+
+@router.get("/competitions/{slug}/test-file")
+def get_test_file(
+    slug: str,
+    db: Session = Depends(get_db),
+    _admin_user: User = Depends(get_admin_user),
+) -> Response:
+    competition = get_competition_by_slug(db, slug=slug)
+    if competition is None:
+        raise HTTPException(status_code=404, detail="Competition not found.")
+    if not competition.test_path or not competition.test_filename:
+        raise HTTPException(status_code=404, detail="Test file not found.")
+
+    try:
+        stored = get_object(competition.test_path)
+    except FileNotFoundError as exc:
+        competition.test_path = None
+        competition.test_filename = None
+        db.commit()
+        raise HTTPException(status_code=404, detail="Test file not found.") from exc
+    return Response(
+        content=stored.body,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": build_attachment_content_disposition(
+                competition.test_filename,
+                fallback="test.csv",
             )
         },
     )
@@ -169,6 +209,7 @@ async def update_scoring_config(
     scoring_direction: str = Form(...),
     metric_code: str = Form(...),
     solution_file: UploadFile | None = File(default=None),
+    test_file: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
     _admin_user: User = Depends(get_admin_user),
 ) -> ScoringConfigResponse:
@@ -186,6 +227,12 @@ async def update_scoring_config(
         except FileNotFoundError:
             competition.solution_path = None
             competition.solution_filename = None
+    if competition.test_path is not None:
+        try:
+            get_object(competition.test_path)
+        except FileNotFoundError:
+            competition.test_path = None
+            competition.test_filename = None
     if competition.submission_mode == "prediction_file":
         if solution_file is None and not competition.solution_path:
             raise HTTPException(
@@ -230,6 +277,22 @@ async def update_scoring_config(
         )
         competition.solution_path = stored_solution.absolute_path
         competition.solution_filename = stored_solution.original_filename
+    if test_file is not None:
+        validate_upload_size(
+            test_file,
+            max_bytes=settings.max_solution_upload_bytes,
+            label="test file",
+        )
+        validate_csv_upload(test_file, label="test file")
+        stored_test = save_upload(
+            settings.local_storage_root,
+            category="scoring",
+            competition_slug=competition.slug,
+            filename=test_file.filename or "test.csv",
+            upload=test_file,
+        )
+        competition.test_path = stored_test.absolute_path
+        competition.test_filename = stored_test.original_filename
 
     competition.scoring_metric = metric_name
     competition.scoring_direction = scoring_direction

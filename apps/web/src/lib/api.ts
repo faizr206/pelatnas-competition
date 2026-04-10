@@ -23,6 +23,10 @@ export function getSolutionFileUrl(slug: string) {
   return `${apiBaseUrl}/competitions/${slug}/solution-file`;
 }
 
+export function getTestFileUrl(slug: string) {
+  return `${apiBaseUrl}/competitions/${slug}/test-file`;
+}
+
 async function readErrorMessage(response: Response) {
   try {
     const payload = (await response.json()) as
@@ -300,6 +304,7 @@ export async function updateScoringConfig(
     scoringDirection: string;
     metricCode: string;
     solutionFile?: File | null;
+    testFile?: File | null;
   },
 ) {
   const formData = new FormData();
@@ -308,6 +313,9 @@ export async function updateScoringConfig(
   formData.append("metric_code", payload.metricCode);
   if (payload.solutionFile) {
     formData.append("solution_file", payload.solutionFile);
+  }
+  if (payload.testFile) {
+    formData.append("test_file", payload.testFile);
   }
 
   const response = await fetch(`${apiBaseUrl}/competitions/${slug}/scoring-config`, {

@@ -22,6 +22,7 @@ SUPPORTED_SCORING_METRICS = {
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 PARTICIPANT_MODULE_NAME = "participant_submission"
+SOLUTION_MODULE_NAME = "competition_solution"
 
 
 @dataclass(frozen=True)
@@ -92,11 +93,15 @@ def list_metric_templates() -> list[MetricTemplate]:
     templates: list[MetricTemplate] = []
 
     for path in sorted(TEMPLATES_DIR.glob("*.py")):
-        module = _load_metric_module(path, participant_module=_build_stub_participant_module())
+        module = _load_metric_module(
+            path,
+            participant_module=_build_stub_participant_module(),
+            solution_module=_build_stub_solution_module(),
+        )
         templates.append(
             MetricTemplate(
                 name=path.stem,
-                title=path.stem.replace("_", " ").title(),
+                title=str(getattr(module, "TEMPLATE_TITLE", path.stem.replace("_", " ").title())),
                 description=(module.__doc__ or "Scoring template").strip(),
                 code=path.read_text(encoding="utf-8"),
                 default_metric_name=str(getattr(module, "METRIC_NAME", path.stem)),
@@ -117,7 +122,14 @@ def validate_metric_script(path: str, *, submission_mode: str = "prediction_file
     participant_module = (
         _build_stub_participant_module() if submission_mode == "code_submission" else None
     )
-    _load_metric_module(Path(path), participant_module=participant_module)
+    solution_module = (
+        _build_stub_solution_module() if submission_mode == "code_submission" else None
+    )
+    _load_metric_module(
+        Path(path),
+        participant_module=participant_module,
+        solution_module=solution_module,
+    )
 
 
 def _score_with_custom_metric(
@@ -168,6 +180,7 @@ def _score_with_custom_metric(
         return _score_notebook_with_custom_metric(
             source_path=source_path,
             metric_script_path=metric_script_path,
+            solution_path=solution_path,
             artifact_dir=artifact_dir,
         )
 
@@ -220,6 +233,7 @@ def _score_notebook_with_custom_metric(
     *,
     source_path: str,
     metric_script_path: str,
+    solution_path: str | None,
     artifact_dir: str,
 ) -> ScoreComputationResult:
     target_path = Path(artifact_dir) / f"{PARTICIPANT_MODULE_NAME}.py"
@@ -230,24 +244,22 @@ def _score_notebook_with_custom_metric(
         module_name=PARTICIPANT_MODULE_NAME,
     )
     predict = getattr(participant_module, "predict", None)
-    if not callable(predict):
-        raise ValueError("Notebook submission must define a callable predict function.")
+    predict_from_params = getattr(participant_module, "predict_from_params", None)
+    if not callable(predict) and not callable(predict_from_params):
+        raise ValueError(
+            "Notebook submission must define a callable predict or "
+            "predict_from_params function."
+        )
 
     metric_module = _load_metric_module(
         Path(metric_script_path),
         participant_module=participant_module,
+        solution_module=_build_solution_module(
+            path=Path(solution_path) if solution_path is not None else None
+        ),
     )
     raw_score = metric_module.score_submission()
-    if not isinstance(raw_score, int | float):
-        raise ValueError("score_submission must return a numeric score.")
-
-    score = float(raw_score)
-    return ScoreComputationResult(
-        metric_value=score,
-        score_value=score,
-        public_score_value=score,
-        private_score_value=score,
-    )
+    return _normalize_notebook_metric_result(raw_score)
 
 
 def _invoke_metric(
@@ -310,6 +322,7 @@ def _load_metric_module(
     path: Path,
     *,
     participant_module: ModuleType | None = None,
+    solution_module: ModuleType | None = None,
 ) -> ModuleType:
     spec = importlib.util.spec_from_file_location(
         f"competition_metric_{hashlib.sha256(str(path).encode()).hexdigest()[:12]}",
@@ -319,7 +332,10 @@ def _load_metric_module(
         raise ValueError("Metric script could not be loaded.")
 
     module = importlib.util.module_from_spec(spec)
-    with _temporary_participant_module(participant_module):
+    with _temporary_scoring_modules(
+        participant_module=participant_module,
+        solution_module=solution_module,
+    ):
         spec.loader.exec_module(module)
 
     score_submission = getattr(module, "score_submission", None)
@@ -369,27 +385,107 @@ def _build_stub_participant_module() -> ModuleType:
     def predict(_data: object) -> None:
         return None
 
+    def predict_from_params(_params: object) -> None:
+        return None
+
+    module.LINE_PARAMS = [0]  # type: ignore[attr-defined]
     module.predict = predict  # type: ignore[attr-defined]
+    module.predict_from_params = predict_from_params  # type: ignore[attr-defined]
     return module
 
 
-@contextlib.contextmanager
-def _temporary_participant_module(
-    participant_module: ModuleType | None,
-) -> Iterator[None]:
-    if participant_module is None:
-        yield
-        return
+def _build_stub_solution_module() -> ModuleType:
+    return _build_solution_module(path=None)
 
-    original = sys.modules.get(PARTICIPANT_MODULE_NAME)
-    sys.modules[PARTICIPANT_MODULE_NAME] = participant_module
+
+def _build_solution_module(*, path: Path | None) -> ModuleType:
+    module = ModuleType(SOLUTION_MODULE_NAME)
+    module.PATH = None if path is None else str(path)  # type: ignore[attr-defined]
+    module.FILENAME = None if path is None else path.name  # type: ignore[attr-defined]
+
+    def read_rows(usage: str | None = None) -> list[dict[str, str]]:
+        if path is None:
+            return []
+        rows = _read_csv_rows(path)
+        if usage is None:
+            return rows
+        normalized_usage = usage.strip().lower()
+        return [
+            row for row in rows if row.get("Usage", "").strip().lower() == normalized_usage
+        ]
+
+    def read_text() -> str:
+        if path is None:
+            return ""
+        return path.read_text(encoding="utf-8")
+
+    module.read_rows = read_rows  # type: ignore[attr-defined]
+    module.read_text = read_text  # type: ignore[attr-defined]
+    return module
+
+
+def _normalize_notebook_metric_result(raw_score: object) -> ScoreComputationResult:
+    if isinstance(raw_score, int | float):
+        score = float(raw_score)
+        return ScoreComputationResult(
+            metric_value=score,
+            score_value=score,
+            public_score_value=score,
+            private_score_value=score,
+        )
+
+    if isinstance(raw_score, dict):
+        public_value = raw_score.get("public_score_value", raw_score.get("public"))
+        private_value = raw_score.get("private_score_value", raw_score.get("private"))
+        metric_value = raw_score.get("metric_value", private_value)
+        score_value = raw_score.get("score_value", private_value)
+        if not isinstance(public_value, int | float) or not isinstance(private_value, int | float):
+            raise ValueError(
+                "Notebook metric dictionaries must include numeric public/private scores."
+            )
+        if not isinstance(metric_value, int | float) or not isinstance(score_value, int | float):
+            raise ValueError(
+                "Notebook metric dictionaries must include numeric metric/score values."
+            )
+        return ScoreComputationResult(
+            metric_value=float(metric_value),
+            score_value=float(score_value),
+            public_score_value=float(public_value),
+            private_score_value=float(private_value),
+        )
+
+    raise ValueError(
+        "score_submission must return a numeric score or a dict with public/private scores."
+    )
+
+
+@contextlib.contextmanager
+def _temporary_scoring_modules(
+    *,
+    participant_module: ModuleType | None,
+    solution_module: ModuleType | None,
+) -> Iterator[None]:
+    original_modules: dict[str, ModuleType | None] = {}
+    replacements: list[tuple[str, ModuleType | None]] = [
+        (PARTICIPANT_MODULE_NAME, participant_module),
+        (SOLUTION_MODULE_NAME, solution_module),
+    ]
     try:
+        for module_name, module in replacements:
+            if module is None:
+                continue
+            original_modules[module_name] = sys.modules.get(module_name)
+            sys.modules[module_name] = module
         yield
     finally:
-        if original is None:
-            sys.modules.pop(PARTICIPANT_MODULE_NAME, None)
-        else:
-            sys.modules[PARTICIPANT_MODULE_NAME] = original
+        for module_name, module in replacements:
+            if module is None:
+                continue
+            original = original_modules.get(module_name)
+            if original is None:
+                sys.modules.pop(module_name, None)
+            else:
+                sys.modules[module_name] = original
 
 
 def _score_csv(*, source: Path, scoring_metric: str) -> float:

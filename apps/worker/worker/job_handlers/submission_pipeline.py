@@ -80,6 +80,17 @@ def process_submission_job(job_id: str) -> str:
                         / (competition.metric_script_filename or "custom_metric.py"),
                     )
                 )
+                _ = (
+                    None
+                    if not competition.test_path
+                    else _stage_optional_competition_object(
+                        competition=competition,
+                        field_name="test_path",
+                        filename_field_name="test_filename",
+                        object_key=competition.test_path,
+                        target_path=work_path / (competition.test_filename or "test.csv"),
+                    )
+                )
 
                 _write_execution_log(
                     artifact_dir,

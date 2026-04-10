@@ -16,6 +16,7 @@ class ScoringConfigResponse(BaseModel):
     scoring_metric: str
     scoring_direction: str
     solution_filename: str | None
+    test_filename: str | None
     metric_script_filename: str | None
     metric_code: str | None
     templates: list[MetricTemplateResponse]
