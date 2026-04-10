@@ -252,6 +252,10 @@ export async function getAdminCompetitionSubmissions(slug: string) {
   return expectJson<AdminTask[]>(response);
 }
 
+export function getSubmissionLogsUrl(submissionId: string) {
+  return `${apiBaseUrl}/submissions/${submissionId}/logs`;
+}
+
 export async function getAdminCompetitions() {
   const response = await fetch(`${apiBaseUrl}/admin/competitions`, {
     credentials: "include",

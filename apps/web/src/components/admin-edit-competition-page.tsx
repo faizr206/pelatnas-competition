@@ -27,6 +27,7 @@ import {
   getAdminCompetition,
   getAdminCompetitionSubmissions,
   getAdminSubmissionSourceFileUrl,
+  getSubmissionLogsUrl,
   getSolutionFileUrl,
   getTestFileUrl,
   getOptionalSession,
@@ -429,12 +430,13 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
                   <TableHead>Private Score</TableHead>
                   <TableHead>Submitted</TableHead>
                   <TableHead>Download</TableHead>
+                  <TableHead>Logs</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {competitionSubmissions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-sm text-[#757575]">
+                    <TableCell colSpan={8} className="text-sm text-[#757575]">
                       No submissions have been uploaded for this competition yet.
                     </TableCell>
                   </TableRow>
@@ -483,6 +485,20 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
                         >
                           Download file
                         </a>
+                      </TableCell>
+                      <TableCell>
+                        {submission.latest_job?.status === "failed" ? (
+                          <a
+                            className="text-sm font-medium text-[#111111] underline-offset-4 hover:underline"
+                            href={getSubmissionLogsUrl(submission.submission_id)}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            View logs
+                          </a>
+                        ) : (
+                          "-"
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

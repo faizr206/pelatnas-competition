@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import traceback
 from pathlib import Path
 
 from apps.api.app.config import get_settings
@@ -13,7 +14,7 @@ from packages.execution.policy import SandboxPolicy, default_sandbox_policy
 from packages.leaderboard.service import refresh_leaderboard
 from packages.observability.logging import get_logger
 from packages.scoring.service import compute_submission_score
-from packages.storage.service import download_file_to_path, save_local_file
+from packages.storage.service import download_file_to_path, save_local_file, save_text_file
 
 logger = get_logger(__name__)
 
@@ -219,6 +220,29 @@ def process_submission_job(job_id: str) -> str:
                 submission = session.get(Submission, job.submission_id)
                 if submission is not None:
                     submission.status = SubmissionStatus.FAILED.value
+                    competition = session.get(Competition, submission.competition_id)
+                    if competition is not None:
+                        failure_log = _build_failure_log(
+                            submission=submission,
+                            job=job,
+                            exception=exc,
+                        )
+                        uploaded_failure_log = save_text_file(
+                            "",
+                            category="artifacts",
+                            competition_slug=competition.slug,
+                            filename=f"{submission.id}-error.log",
+                            contents=failure_log,
+                        )
+                        session.add(
+                            SubmissionArtifact(
+                                submission_id=submission.id,
+                                artifact_type="error.log",
+                                storage_path=uploaded_failure_log,
+                                checksum="",
+                                size_bytes=len(failure_log.encode("utf-8")),
+                            )
+                        )
                 session.flush()
         logger.exception("Submission job %s failed", job_id)
         raise
@@ -260,6 +284,25 @@ def _write_execution_log(
         "phase1_status=worker_pipeline_executed",
     ]
     (artifact_dir / "stdout.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _build_failure_log(
+    *,
+    submission: Submission,
+    job: Job,
+    exception: Exception,
+) -> str:
+    lines = [
+        f"submission_id={submission.id}",
+        f"job_id={job.id}",
+        f"submission_type={submission.submission_type}",
+        f"source_original_filename={submission.source_original_filename}",
+        f"error={type(exception).__name__}: {exception}",
+        "",
+        "Traceback:",
+        traceback.format_exc().rstrip(),
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def _stage_object(*, object_key: str, target_path: Path) -> str:

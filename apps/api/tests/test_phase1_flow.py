@@ -5,8 +5,9 @@ from sqlalchemy import select
 
 from apps.api.app.config import get_settings
 from apps.worker.worker.job_handlers.submission_pipeline import process_submission_job
-from packages.db.models import Competition, CompetitionPhase
+from packages.db.models import Competition, CompetitionPhase, Submission, SubmissionArtifact
 from packages.db.session import session_scope
+from packages.storage.service import save_text_file
 
 
 class DummyAsyncResult:
@@ -165,6 +166,84 @@ def test_admin_can_access_upcoming_competition_detail_before_start(client) -> No
 
     leaderboard_response = client.get("/api/v1/competitions/future-admin-access-comp/leaderboard")
     assert leaderboard_response.status_code == 200
+
+
+def test_failed_submission_logs_are_visible_to_submission_owner(client) -> None:
+    _create_user_and_login(
+        client,
+        email="log-owner@example.com",
+        password="participant1234",
+        display_name="Log Owner",
+    )
+
+    me_response = client.get("/api/v1/auth/me")
+    assert me_response.status_code == 200
+    user_id = me_response.json()["id"]
+
+    with session_scope() as session:
+        competition = session.scalar(select(Competition).where(Competition.slug == "test-comp"))
+        assert competition is not None
+        phase = session.scalar(
+            select(CompetitionPhase).where(CompetitionPhase.competition_id == competition.id)
+        )
+        assert phase is not None
+
+        submission = Submission(
+            competition_id=competition.id,
+            phase_id=phase.id,
+            user_id=user_id,
+            submission_type="csv",
+            source_archive_path="/app/data/storage/submissions/test.csv",
+            manifest_path=None,
+            source_original_filename="submission.csv",
+            source_content_type="text/csv",
+            source_checksum="checksum",
+            source_size_bytes=32,
+            status="failed",
+        )
+        session.add(submission)
+        session.flush()
+
+        stdout_path = save_text_file(
+            "",
+            category="artifacts",
+            competition_slug=competition.slug,
+            filename=f"{submission.id}-stdout.log",
+            contents="submission_id=123\nphase1_status=worker_pipeline_executed\n",
+        )
+        error_path = save_text_file(
+            "",
+            category="artifacts",
+            competition_slug=competition.slug,
+            filename=f"{submission.id}-error.log",
+            contents="ValueError: submission failed\nTraceback:\nline 1\n",
+        )
+        session.add(
+            SubmissionArtifact(
+                submission_id=submission.id,
+                artifact_type="stdout.log",
+                storage_path=stdout_path,
+                checksum="checksum-stdout",
+                size_bytes=53,
+            )
+        )
+        session.add(
+            SubmissionArtifact(
+                submission_id=submission.id,
+                artifact_type="error.log",
+                storage_path=error_path,
+                checksum="checksum-error",
+                size_bytes=45,
+            )
+        )
+        session.flush()
+        submission_id = submission.id
+
+    logs_response = client.get(f"/api/v1/submissions/{submission_id}/logs")
+    assert logs_response.status_code == 200
+    assert "phase1_status=worker_pipeline_executed" in logs_response.text
+    assert "ValueError: submission failed" in logs_response.text
+    assert "Traceback:" in logs_response.text
 
 
 def test_dataset_upload_rejects_disallowed_extension(client) -> None:

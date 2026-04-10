@@ -245,16 +245,24 @@ def get_submission_logs(
     current_user: User = Depends(get_current_user),
 ) -> Response:
     _ = _get_visible_submission(db=db, submission_id=submission_id, current_user=current_user)
-    artifact = db.scalar(
-        select(SubmissionArtifact)
-        .where(SubmissionArtifact.submission_id == submission_id)
-        .where(SubmissionArtifact.artifact_type == "stdout.log")
-        .order_by(SubmissionArtifact.created_at.desc())
+    artifacts = list(
+        db.scalars(
+            select(SubmissionArtifact)
+            .where(SubmissionArtifact.submission_id == submission_id)
+            .where(SubmissionArtifact.artifact_type.in_(("stdout.log", "error.log")))
+            .order_by(SubmissionArtifact.created_at.asc())
+        ).all()
     )
-    if artifact is None:
+    if not artifacts:
         raise HTTPException(status_code=404, detail="No log artifact found.")
-    stored = get_object(artifact.storage_path)
-    return Response(content=stored.body, media_type="text/plain; charset=utf-8")
+    log_bodies: list[bytes] = []
+    for artifact in artifacts:
+        stored = get_object(artifact.storage_path)
+        log_bodies.append(stored.body.rstrip(b"\n"))
+    return Response(
+        content=b"\n\n".join(body for body in log_bodies if body) + b"\n",
+        media_type="text/plain; charset=utf-8",
+    )
 
 
 def _get_visible_submission(
