@@ -61,6 +61,9 @@ class Competition(TimestampMixin, Base):
     source_retention_days: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
     log_retention_days: Mapped[int] = mapped_column(Integer, nullable=False, default=14)
     artifact_retention_days: Mapped[int] = mapped_column(Integer, nullable=False, default=14)
+    private_leaderboard_opens_at: Mapped[Any | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     solution_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     solution_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     test_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)

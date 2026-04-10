@@ -56,9 +56,9 @@ def _load_joined_rows(usage: str):
             raise ValueError(f"{usage} Id values in solution.csv must match rows in test.csv.")
         return merged
 
-    with open(test_path, "r", encoding="utf-8", newline="") as handle:
+    with open(test_path, encoding="utf-8", newline="") as handle:
         test_rows = list(csv.DictReader(handle))
-    with open(solution_path, "r", encoding="utf-8", newline="") as handle:
+    with open(solution_path, encoding="utf-8", newline="") as handle:
         solution_rows = list(csv.DictReader(handle))
 
     if not test_rows:

@@ -348,6 +348,107 @@ def test_private_leaderboard_unlocks_after_phase_end_and_late_submissions_do_not
     assert private_leaderboard_payload[0]["score_value"] == 3.0
 
 
+def test_private_leaderboard_unlock_can_be_set_independently_of_phase_end(
+    client, monkeypatch
+) -> None:
+    _login_admin(client)
+
+    competition_response = client.post(
+        "/api/v1/competitions",
+        json={
+            "slug": "manual-unlock-comp",
+            "title": "Manual Unlock Competition",
+            "description": "Private leaderboard unlock time is configurable",
+            "visibility": "public",
+            "status": "active",
+            "scoring_metric": "mse",
+            "scoring_direction": "min",
+            "submission_mode": "prediction_file",
+            "private_leaderboard_opens_at": "2099-01-15T00:00:00Z",
+            "phase": {
+                "name": "main",
+                "starts_at": "2026-01-01T00:00:00Z",
+                "ends_at": "2099-12-31T00:00:00Z",
+                "submission_limit_per_day": 5,
+                "scoring_version": "v1",
+                "rules_version": "v1",
+            },
+        },
+    )
+    assert competition_response.status_code == 201
+
+    scoring_response = client.put(
+        "/api/v1/competitions/manual-unlock-comp/scoring-config",
+        data={
+            "metric_name": "mse",
+            "scoring_direction": "min",
+            "metric_code": """
+def score_submission(solution_rows, submission_rows):
+    total = 0.0
+    for solution_row, submission_row in zip(solution_rows, submission_rows):
+        target = float(solution_row["target"])
+        prediction = float(submission_row["prediction"])
+        total += (prediction - target) ** 2
+    return total / len(solution_rows)
+""".strip(),
+        },
+        files={
+            "solution_file": (
+                "solution.csv",
+                BytesIO(b"Id,target,Usage\n1,1.0,Public\n2,2.0,Private\n"),
+                "text/csv",
+            )
+        },
+    )
+    assert scoring_response.status_code == 200
+
+    from apps.worker.worker import queue as worker_queue
+
+    monkeypatch.setattr(
+        worker_queue.process_submission_task,
+        "apply_async",
+        lambda args: DummyAsyncResult(),
+    )
+
+    submission_response = client.post(
+        "/api/v1/competitions/manual-unlock-comp/submissions",
+        data={"submission_type": "csv"},
+        files={
+            "source_file": (
+                "submission.csv",
+                BytesIO(b"Id,prediction\n1,1.5\n2,1.0\n"),
+                "text/csv",
+            )
+        },
+    )
+    assert submission_response.status_code == 202
+    process_submission_job(submission_response.json()["id"])
+
+    private_before_unlock = client.get(
+        "/api/v1/competitions/manual-unlock-comp/leaderboard/private"
+    )
+    assert private_before_unlock.status_code == 404
+
+    with session_scope() as session:
+        competition = session.scalar(
+            select(Competition).where(Competition.slug == "manual-unlock-comp")
+        )
+        assert competition is not None
+        competition.private_leaderboard_opens_at = datetime(2020, 1, 2, tzinfo=UTC)
+        session.flush()
+
+    submissions_response = client.get("/api/v1/competitions/manual-unlock-comp/submissions")
+    assert submissions_response.status_code == 200
+    submission_payload = submissions_response.json()[0]
+    assert submission_payload["latest_score"]["public_score_value"] == 0.25
+    assert submission_payload["latest_score"]["private_score_value"] == 1.0
+    assert submission_payload["latest_score"]["score_value"] == 1.0
+
+    private_after_unlock = client.get("/api/v1/competitions/manual-unlock-comp/leaderboard/private")
+    assert private_after_unlock.status_code == 200
+    assert private_after_unlock.json()[0]["score_value"] == 1.0
+
+
 def test_submission_job_is_committed_before_worker_can_process_it(client, monkeypatch) -> None:
     _login_admin(client)
 

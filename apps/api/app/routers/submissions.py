@@ -26,7 +26,7 @@ from apps.api.app.schemas.submissions import (
 from apps.api.app.services.jobs import create_submission_job, enqueue_submission_job
 from packages.core.constants import SubmissionType
 from packages.core.time import utcnow
-from packages.db.models import CompetitionPhase, Submission, SubmissionArtifact, User
+from packages.db.models import Competition, CompetitionPhase, Submission, SubmissionArtifact, User
 from packages.security.upload_validation import (
     validate_csv_upload,
     validate_notebook_upload,
@@ -229,7 +229,12 @@ def _serialize_submission(*, db: Session, submission: Submission) -> SubmissionR
     latest_score = get_latest_score_for_submission(db, submission_id=submission.id)
     latest_job = get_latest_job_for_submission(db, submission_id=submission.id)
     phase = db.get(CompetitionPhase, submission.phase_id)
-    phase_has_ended = phase is not None and _as_utc(phase.ends_at) < utcnow()
+    competition = db.get(Competition, submission.competition_id)
+    private_scores_visible = (
+        competition is not None
+        and phase is not None
+        and _as_utc(competition.private_leaderboard_opens_at or phase.ends_at) < utcnow()
+    )
     return SubmissionResponse(
         id=submission.id,
         competition_id=submission.competition_id,
@@ -252,7 +257,7 @@ def _serialize_submission(*, db: Session, submission: Submission) -> SubmissionR
                 metric_value=latest_score.metric_value,
                 score_value=(
                     latest_score.private_score_value
-                    if phase_has_ended
+                    if private_scores_visible
                     else latest_score.public_score_value
                 ),
                 public_score_value=latest_score.public_score_value,

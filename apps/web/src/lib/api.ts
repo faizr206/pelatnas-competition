@@ -1,5 +1,6 @@
 import type {
   AdminManagedUser,
+  AdminBulkUserImportResult,
   AdminTask,
   AdminWorker,
   Competition,
@@ -224,6 +225,19 @@ export async function createAdminUser(payload: {
   });
 
   return expectJson<AdminManagedUser>(response);
+}
+
+export async function importAdminUsers(csvFile: File) {
+  const formData = new FormData();
+  formData.append("csv_file", csvFile);
+
+  const response = await fetch(`${apiBaseUrl}/admin/users/import`, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+
+  return expectJson<AdminBulkUserImportResult>(response);
 }
 
 export async function updateAdminUser(

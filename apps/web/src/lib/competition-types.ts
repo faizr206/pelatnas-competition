@@ -9,6 +9,11 @@ export type User = {
 
 export type AdminManagedUser = User;
 
+export type AdminBulkUserImportResult = {
+  created_count: number;
+  users: AdminManagedUser[];
+};
+
 export type AdminWorker = {
   worker_id: string;
   availability_status: string;
@@ -75,6 +80,7 @@ export type Competition = {
   source_retention_days: number;
   log_retention_days: number;
   artifact_retention_days: number;
+  private_leaderboard_opens_at: string | null;
   solution_filename: string | null;
   test_filename: string | null;
   metric_script_filename: string | null;
@@ -109,6 +115,7 @@ export type CompetitionCreatePayload = {
   source_retention_days: number;
   log_retention_days: number;
   artifact_retention_days: number;
+  private_leaderboard_opens_at: string | null;
   phase: CompetitionPhasePayload;
 };
 

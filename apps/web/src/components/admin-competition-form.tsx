@@ -31,6 +31,7 @@ export type CompetitionFormState = {
   source_retention_days: string;
   log_retention_days: string;
   artifact_retention_days: string;
+  private_leaderboard_opens_at: string;
   phase_name: string;
   phase_starts_at: string;
   phase_ends_at: string;
@@ -234,6 +235,14 @@ export function AdminCompetitionForm({
             }
           />
         </Field>
+        <Field label="Private leaderboard opens">
+          <Input
+            className={inputClassName}
+            type="datetime-local"
+            value={form.private_leaderboard_opens_at}
+            onChange={(event) => onChange("private_leaderboard_opens_at", event.target.value)}
+          />
+        </Field>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -341,6 +350,9 @@ export function createEmptyCompetitionForm(): CompetitionFormState {
     source_retention_days: "30",
     log_retention_days: "14",
     artifact_retention_days: "14",
+    private_leaderboard_opens_at: formatForDateTimeInput(
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    ),
     phase_name: "main",
     phase_starts_at: formatForDateTimeInput(
       new Date(Date.now() + 60 * 60 * 1000).toISOString(),
@@ -378,6 +390,11 @@ export function competitionFormFromCompetition(
     source_retention_days: String(competition.source_retention_days),
     log_retention_days: String(competition.log_retention_days),
     artifact_retention_days: String(competition.artifact_retention_days),
+    private_leaderboard_opens_at: formatForDateTimeInput(
+      competition.private_leaderboard_opens_at ??
+        phase?.ends_at ??
+        new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    ),
     phase_name: phase?.name ?? "main",
     phase_starts_at: formatForDateTimeInput(phase?.starts_at ?? new Date().toISOString()),
     phase_ends_at: formatForDateTimeInput(
@@ -425,6 +442,7 @@ function toSharedCompetitionPayload(
     source_retention_days: Number(form.source_retention_days),
     log_retention_days: Number(form.log_retention_days),
     artifact_retention_days: Number(form.artifact_retention_days),
+    private_leaderboard_opens_at: toIsoString(form.private_leaderboard_opens_at),
     phase: {
       name: form.phase_name.trim(),
       starts_at: toIsoString(form.phase_starts_at),

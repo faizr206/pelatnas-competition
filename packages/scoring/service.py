@@ -247,8 +247,7 @@ def _score_notebook_with_custom_metric(
     predict_from_params = getattr(participant_module, "predict_from_params", None)
     if not callable(predict) and not callable(predict_from_params):
         raise ValueError(
-            "Notebook submission must define a callable predict or "
-            "predict_from_params function."
+            "Notebook submission must define a callable predict or " "predict_from_params function."
         )
 
     metric_module = _load_metric_module(
@@ -410,9 +409,7 @@ def _build_solution_module(*, path: Path | None) -> ModuleType:
         if usage is None:
             return rows
         normalized_usage = usage.strip().lower()
-        return [
-            row for row in rows if row.get("Usage", "").strip().lower() == normalized_usage
-        ]
+        return [row for row in rows if row.get("Usage", "").strip().lower() == normalized_usage]
 
     def read_text() -> str:
         if path is None:

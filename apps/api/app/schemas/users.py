@@ -23,3 +23,8 @@ class AdminPasswordResetRequest(BaseModel):
 
 class AdminUserResponse(UserResponse):
     model_config = ConfigDict(from_attributes=True)
+
+
+class AdminBulkUserImportResponse(BaseModel):
+    created_count: int
+    users: list[AdminUserResponse]

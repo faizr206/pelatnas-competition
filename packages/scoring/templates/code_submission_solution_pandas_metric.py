@@ -24,7 +24,7 @@ def score_submission() -> float:
             raise ValueError("solution.csv must contain at least one row.")
         rows = solution_df.to_dict(orient="records")
     else:
-        with open(competition_solution.PATH, "r", encoding="utf-8", newline="") as handle:
+        with open(competition_solution.PATH, encoding="utf-8", newline="") as handle:
             rows = list(csv.DictReader(handle))
         if not rows:
             raise ValueError("solution.csv must contain at least one row.")

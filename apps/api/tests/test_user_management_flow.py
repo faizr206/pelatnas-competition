@@ -123,6 +123,73 @@ def test_admin_can_list_update_and_reset_user_password(client) -> None:
     assert suspended_login_response.status_code == 403
 
 
+def test_admin_can_bulk_import_users_from_csv(client) -> None:
+    _login_admin(client)
+
+    import_response = client.post(
+        "/api/v1/admin/users/import",
+        files={
+            "csv_file": (
+                "users.csv",
+                (
+                    b"display_name,email,default_password\n"
+                    b"Participant One,participant1@example.com,temp-pass-111\n"
+                    b"Participant Two,participant2@example.com,temp-pass-222\n"
+                ),
+                "text/csv",
+            )
+        },
+    )
+    assert import_response.status_code == 201
+    payload = import_response.json()
+    assert payload["created_count"] == 2
+    assert [user["email"] for user in payload["users"]] == [
+        "participant1@example.com",
+        "participant2@example.com",
+    ]
+    assert all(user["must_change_password"] for user in payload["users"])
+
+    client.post("/api/v1/auth/logout")
+    login_response = _login_user(
+        client,
+        email="participant2@example.com",
+        password="temp-pass-222",
+    )
+    assert login_response.status_code == 200
+    assert login_response.json()["must_change_password"] is True
+
+
+def test_bulk_import_rejects_existing_email(client) -> None:
+    _login_admin(client)
+
+    create_response = client.post(
+        "/api/v1/admin/users",
+        json={
+            "email": "participant@example.com",
+            "display_name": "Participant One",
+            "default_password": "temp-pass-123",
+            "is_admin": False,
+            "status": "active",
+        },
+    )
+    assert create_response.status_code == 201
+
+    import_response = client.post(
+        "/api/v1/admin/users/import",
+        files={
+            "csv_file": (
+                "users.csv",
+                (
+                    b"display_name,email,default_password\n"
+                    b"Participant Again,participant@example.com,temp-pass-999\n"
+                ),
+                "text/csv",
+            )
+        },
+    )
+    assert import_response.status_code == 409
+
+
 def test_non_admin_cannot_access_user_management_endpoints(client) -> None:
     _login_admin(client)
     create_response = client.post(

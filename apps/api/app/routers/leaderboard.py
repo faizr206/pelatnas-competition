@@ -40,13 +40,16 @@ def _read_leaderboard(
         return []
     now = utcnow()
     phase_starts_at = _as_utc(phase.starts_at)
-    phase_ends_at = _as_utc(phase.ends_at)
     if phase_starts_at > now:
         return []
-    if visibility_type == "private" and phase_ends_at >= now:
+    if visibility_type == "private" and not _private_scores_visible_at(
+        competition=competition,
+        phase=phase,
+        now=now,
+    ):
         raise HTTPException(
             status_code=404,
-            detail="Private leaderboard is unavailable until the competition ends.",
+            detail="Private leaderboard is unavailable until the configured unlock time.",
         )
 
     rows = db.execute(
@@ -77,3 +80,8 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def _private_scores_visible_at(*, competition, phase, now: datetime) -> bool:
+    opens_at = competition.private_leaderboard_opens_at or phase.ends_at
+    return _as_utc(opens_at) < now

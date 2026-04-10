@@ -65,8 +65,10 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
   const [fileInputKey, setFileInputKey] = useState(0);
 
   const selectedPhase = competition?.phases[0] ?? null;
-  const competitionHasEnded = selectedPhase
-    ? new Date(selectedPhase.ends_at).getTime() < Date.now()
+  const privateLeaderboardOpen = (competition?.private_leaderboard_opens_at ?? selectedPhase?.ends_at)
+    ? new Date(
+        competition?.private_leaderboard_opens_at ?? selectedPhase?.ends_at ?? "",
+      ).getTime() < Date.now()
     : false;
   const visibleLeaderboard =
     leaderboardVisibility === "public" ? publicLeaderboard : privateLeaderboard;
@@ -158,7 +160,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
 
   useEffect(() => {
     if (
-      !competitionHasEnded ||
+      !privateLeaderboardOpen ||
       leaderboardVisibility !== "private" ||
       privateLeaderboard.length > 0
     ) {
@@ -189,7 +191,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
     return () => {
       active = false;
     };
-  }, [competitionHasEnded, leaderboardVisibility, privateLeaderboard.length, slug]);
+  }, [leaderboardVisibility, privateLeaderboard.length, privateLeaderboardOpen, slug]);
 
   useEffect(() => {
     if (!user || !activeJob || !activeJobStatuses.has(activeJob.status)) {
@@ -212,7 +214,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
         const refreshedPublicLeaderboard = await getLeaderboard(slug, "public");
         setPublicLeaderboard(refreshedPublicLeaderboard);
 
-        if (competitionHasEnded && leaderboardVisibility === "private") {
+        if (privateLeaderboardOpen && leaderboardVisibility === "private") {
           const refreshedPrivateLeaderboard = await getLeaderboard(slug, "private");
           setPrivateLeaderboard(refreshedPrivateLeaderboard);
         }
@@ -224,7 +226,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [activeJob, competitionHasEnded, leaderboardVisibility, slug, user]);
+  }, [activeJob, leaderboardVisibility, privateLeaderboardOpen, slug, user]);
 
   async function refreshSignedInResources() {
     if (!user) {
@@ -282,7 +284,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
       const refreshedPublicLeaderboard = await getLeaderboard(slug, "public");
       setPublicLeaderboard(refreshedPublicLeaderboard);
 
-      if (competitionHasEnded && leaderboardVisibility === "private") {
+      if (privateLeaderboardOpen && leaderboardVisibility === "private") {
         const refreshedPrivateLeaderboard = await getLeaderboard(slug, "private");
         setPrivateLeaderboard(refreshedPrivateLeaderboard);
       }
@@ -458,7 +460,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
             {activeTab === "leaderboard" ? (
               <LeaderboardTab
                 competition={competition}
-                competitionHasEnded={competitionHasEnded}
+                privateLeaderboardOpen={privateLeaderboardOpen}
                 entries={visibleLeaderboard}
                 leaderboardVisibility={leaderboardVisibility}
                 onVisibilityChange={setLeaderboardVisibility}
@@ -475,7 +477,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
                 busy={busy}
                 competition={competition}
                 fileInputKey={fileInputKey}
-                competitionHasEnded={competitionHasEnded}
+                privateLeaderboardOpen={privateLeaderboardOpen}
                 slug={competition.slug}
                 submissionFile={submissionFile}
                 submissionType={submissionType}
@@ -705,13 +707,13 @@ function DataTab({
 
 function LeaderboardTab({
   competition,
-  competitionHasEnded,
+  privateLeaderboardOpen,
   entries,
   leaderboardVisibility,
   onVisibilityChange,
 }: {
   competition: Competition;
-  competitionHasEnded: boolean;
+  privateLeaderboardOpen: boolean;
   entries: LeaderboardEntry[];
   leaderboardVisibility: LeaderboardVisibility;
   onVisibilityChange: (visibility: LeaderboardVisibility) => void;
@@ -723,7 +725,7 @@ function LeaderboardTab({
           <div>
             <h2 className="text-lg font-semibold text-black">Leaderboard</h2>
             <p className="mt-1 text-sm leading-6 text-[#6b6b6b]">
-              Public rankings stay live during the competition. Private rankings unlock after the competition ends, while late submissions remain visible in submission history but do not change the frozen leaderboard.
+              Public rankings stay live during the competition. Private rankings unlock at the configured time, while late submissions remain visible in submission history but do not change the frozen leaderboard.
             </p>
           </div>
           <div className="flex items-center gap-2 rounded-full bg-[#f3f3f3] p-1">
@@ -737,7 +739,7 @@ function LeaderboardTab({
             <button
               type="button"
               className={toggleClass(leaderboardVisibility === "private")}
-              disabled={!competitionHasEnded}
+              disabled={!privateLeaderboardOpen}
               onClick={() => onVisibilityChange("private")}
             >
               Private
@@ -749,9 +751,9 @@ function LeaderboardTab({
           <MetricCard label="Ranking rule" value={competition.best_submission_rule} />
           <MetricCard label="Metric direction" value={competition.scoring_direction} />
         </div>
-        {!competitionHasEnded ? (
+        {!privateLeaderboardOpen ? (
           <div className="border-b border-[#efefef] px-6 py-4 text-sm text-[#6b6b6b]">
-            Private leaderboard results appear after the competition end time.
+            Private leaderboard results appear after the configured unlock time.
           </div>
         ) : null}
         <div className="px-6 pb-6 pt-3">
@@ -892,7 +894,7 @@ function SubmissionsTab({
   activeJob,
   busy,
   competition,
-  competitionHasEnded,
+  privateLeaderboardOpen,
   fileInputKey,
   slug,
   submissionFile,
@@ -906,7 +908,7 @@ function SubmissionsTab({
   activeJob: Job | null;
   busy: boolean;
   competition: Competition;
-  competitionHasEnded: boolean;
+  privateLeaderboardOpen: boolean;
   fileInputKey: number;
   slug: string;
   submissionFile: File | null;
@@ -1057,7 +1059,7 @@ function SubmissionsTab({
                     <TableCell>
                       {!submission.latest_score
                         ? "Pending"
-                        : competitionHasEnded
+                        : privateLeaderboardOpen
                           ? formatScore(submission.latest_score.private_score_value)
                           : "Hidden"}
                     </TableCell>

@@ -31,6 +31,7 @@ class CompetitionCreateRequest(BaseModel):
     source_retention_days: int = Field(default=30, ge=1)
     log_retention_days: int = Field(default=14, ge=1)
     artifact_retention_days: int = Field(default=14, ge=1)
+    private_leaderboard_opens_at: datetime | None = None
     phase: CompetitionPhaseCreateRequest
 
 
@@ -52,6 +53,7 @@ class CompetitionUpdateRequest(BaseModel):
     source_retention_days: int | None = Field(default=None, ge=1)
     log_retention_days: int | None = Field(default=None, ge=1)
     artifact_retention_days: int | None = Field(default=None, ge=1)
+    private_leaderboard_opens_at: datetime | None = None
     phase: CompetitionPhaseCreateRequest | None = None
 
 
@@ -89,6 +91,7 @@ class CompetitionResponse(BaseModel):
     source_retention_days: int
     log_retention_days: int
     artifact_retention_days: int
+    private_leaderboard_opens_at: datetime | None
     solution_filename: str | None
     test_filename: str | None
     metric_script_filename: str | None

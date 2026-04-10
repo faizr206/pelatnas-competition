@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import {
   createAdminUser,
   getAdminUsers,
+  importAdminUsers,
   resetAdminUserPassword,
   updateAdminUser,
 } from "@/lib/api";
@@ -41,6 +42,10 @@ export function AdminUserManagement({ currentUser }: AdminUserManagementProps) {
   const [error, setError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
 
@@ -111,6 +116,37 @@ export function AdminUserManagement({ currentUser }: AdminUserManagementProps) {
           ? createUserError.message
           : "Failed to create the user.",
       );
+    }
+  }
+
+  async function handleImportUsers(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setImportError(null);
+    setImportSuccess(null);
+
+    if (!importFile) {
+      setImportError("Choose a CSV file before importing users.");
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const result = await importAdminUsers(importFile);
+      const nextUsers = [...result.users, ...users];
+      setUsers(nextUsers);
+      setDrafts(buildDrafts(nextUsers));
+      setImportFile(null);
+      setImportSuccess(
+        `Imported ${result.created_count} users. All imported accounts are active, non-admin, and must change password on first login.`,
+      );
+    } catch (importUsersError) {
+      setImportError(
+        importUsersError instanceof Error
+          ? importUsersError.message
+          : "Failed to import users.",
+      );
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -281,6 +317,42 @@ export function AdminUserManagement({ currentUser }: AdminUserManagementProps) {
         ) : null}
         {createSuccess ? (
           <p className="mt-4 text-sm text-[#2d6a4f]">{createSuccess}</p>
+        ) : null}
+      </section>
+
+      <section className="rounded-[28px] border border-[#ececec] bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+        <div className="max-w-3xl">
+          <h3 className="text-lg font-semibold tracking-[-0.03em] text-black">Bulk Import Users</h3>
+          <p className="mt-2 text-sm text-[#6f6f6f]">
+            Upload a `.csv` with exactly `display_name,email,default_password`. Imported users are created as active non-admin accounts and must change password on first login.
+          </p>
+        </div>
+
+        <form className="mt-6 flex flex-col gap-4 md:flex-row md:items-end" onSubmit={handleImportUsers}>
+          <div className="flex-1 space-y-2">
+            <Label htmlFor="bulk-user-import">User CSV</Label>
+            <Input
+              id="bulk-user-import"
+              type="file"
+              accept=".csv"
+              onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
+            />
+          </div>
+          <div className="flex items-end">
+            <Button
+              className="h-11 rounded-full bg-[#1f1f1f] px-5 text-xs font-semibold hover:bg-[#111111]"
+              disabled={importing}
+            >
+              {importing ? "Importing..." : "Import users"}
+            </Button>
+          </div>
+        </form>
+
+        {importError ? (
+          <p className="mt-4 text-sm text-[#b14d4d]">{importError}</p>
+        ) : null}
+        {importSuccess ? (
+          <p className="mt-4 text-sm text-[#2d6a4f]">{importSuccess}</p>
         ) : null}
       </section>
 

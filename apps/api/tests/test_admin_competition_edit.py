@@ -60,6 +60,7 @@ def test_admin_can_update_competition_and_phase_details(client) -> None:
             "source_retention_days": 60,
             "log_retention_days": 21,
             "artifact_retention_days": 30,
+            "private_leaderboard_opens_at": "2026-10-15T12:00:00Z",
             "phase": {
                 "name": "playoffs",
                 "starts_at": "2026-02-01T00:00:00Z",
@@ -77,6 +78,7 @@ def test_admin_can_update_competition_and_phase_details(client) -> None:
     assert payload["visibility"] == "private"
     assert payload["max_runtime_minutes"] == 45
     assert payload["allow_csv_submissions"] is False
+    assert payload["private_leaderboard_opens_at"].startswith("2026-10-15T12:00:00")
     assert payload["phases"][0]["name"] == "playoffs"
     assert payload["phases"][0]["submission_limit_per_day"] == 2
     assert payload["phases"][0]["scoring_version"] == "v2"

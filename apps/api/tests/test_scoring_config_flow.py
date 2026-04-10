@@ -400,7 +400,9 @@ def score_submission():
     assert submission_payload["latest_score"]["score_value"] == 2.0
 
 
-def test_code_submission_metric_can_import_line_params_and_read_test_csv(client, monkeypatch) -> None:
+def test_code_submission_metric_can_import_line_params_and_read_test_csv(
+    client, monkeypatch
+) -> None:
     _login_admin(client)
 
     create_response = client.post(
