@@ -48,6 +48,8 @@ export type AdminTask = {
     metric_name: string;
     metric_value: number;
     score_value: number;
+    public_score_value: number;
+    private_score_value: number;
     scoring_version: string;
   } | null;
 };

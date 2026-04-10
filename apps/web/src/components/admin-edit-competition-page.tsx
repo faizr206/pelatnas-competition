@@ -425,6 +425,8 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
                   <TableHead>File</TableHead>
                   <TableHead>Participant</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Public Score</TableHead>
+                  <TableHead>Private Score</TableHead>
                   <TableHead>Submitted</TableHead>
                   <TableHead>Download</TableHead>
                 </TableRow>
@@ -432,7 +434,7 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
               <TableBody>
                 {competitionSubmissions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-sm text-[#757575]">
+                    <TableCell colSpan={7} className="text-sm text-[#757575]">
                       No submissions have been uploaded for this competition yet.
                     </TableCell>
                   </TableRow>
@@ -461,6 +463,16 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
                         </div>
                       </TableCell>
                       <TableCell>{submission.submission_status}</TableCell>
+                      <TableCell>
+                        {submission.latest_score
+                          ? submission.latest_score.public_score_value.toFixed(4)
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {submission.latest_score
+                          ? submission.latest_score.private_score_value.toFixed(4)
+                          : "-"}
+                      </TableCell>
                       <TableCell>{formatDateTime(submission.created_at)}</TableCell>
                       <TableCell>
                         <a

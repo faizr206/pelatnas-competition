@@ -404,7 +404,8 @@ export function AdminPanelPage() {
                         <TableHead>File</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Worker</TableHead>
-                        <TableHead>Score</TableHead>
+                        <TableHead>Public Score</TableHead>
+                        <TableHead>Private Score</TableHead>
                         <TableHead>Created</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -446,7 +447,14 @@ export function AdminPanelPage() {
                           </TableCell>
                           <TableCell>{task.latest_job?.worker_id ?? "pending"}</TableCell>
                           <TableCell>
-                            {task.latest_score ? task.latest_score.score_value.toFixed(4) : "-"}
+                            {task.latest_score
+                              ? task.latest_score.public_score_value.toFixed(4)
+                              : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {task.latest_score
+                              ? task.latest_score.private_score_value.toFixed(4)
+                              : "-"}
                           </TableCell>
                           <TableCell>{formatDateTime(task.created_at)}</TableCell>
                         </TableRow>
