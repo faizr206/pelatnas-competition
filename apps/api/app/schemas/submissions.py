@@ -14,6 +14,10 @@ class ScoreSummaryResponse(BaseModel):
     scoring_version: str
 
 
+class SubmissionLeaderboardVisibilityRequest(BaseModel):
+    display_on_leaderboard: bool
+
+
 class SubmissionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -29,6 +33,7 @@ class SubmissionResponse(BaseModel):
     source_checksum: str
     source_size_bytes: int
     is_late_submission: bool
+    display_on_leaderboard: bool
     created_at: datetime
     latest_score: ScoreSummaryResponse | None = None
     latest_job: JobResponse | None = None

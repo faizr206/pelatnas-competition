@@ -21,12 +21,14 @@ from apps.api.app.schemas.jobs import JobResponse
 from apps.api.app.schemas.submissions import (
     ScoreSummaryResponse,
     SubmissionArtifactResponse,
+    SubmissionLeaderboardVisibilityRequest,
     SubmissionResponse,
 )
 from apps.api.app.services.jobs import create_submission_job, enqueue_submission_job
 from packages.core.constants import SubmissionType
 from packages.core.time import utcnow
 from packages.db.models import Competition, CompetitionPhase, Submission, SubmissionArtifact, User
+from packages.leaderboard.service import refresh_leaderboard
 from packages.security.upload_validation import (
     validate_csv_upload,
     validate_notebook_upload,
@@ -173,6 +175,48 @@ def get_submission(
     return _serialize_submission(db=db, submission=submission)
 
 
+@router.patch("/submissions/{submission_id}/leaderboard-visibility", response_model=SubmissionResponse)
+def update_submission_leaderboard_visibility(
+    submission_id: str,
+    payload: SubmissionLeaderboardVisibilityRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SubmissionResponse:
+    submission = _get_visible_submission(
+        db=db,
+        submission_id=submission_id,
+        current_user=current_user,
+    )
+    if submission.user_id != current_user.id or not current_user.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Only admins can change leaderboard visibility for their own submissions.",
+        )
+
+    submission.display_on_leaderboard = payload.display_on_leaderboard
+    db.add(submission)
+    db.flush()
+
+    competition = db.get(Competition, submission.competition_id)
+    if competition is not None:
+        refresh_leaderboard(
+            db,
+            competition=competition,
+            phase_id=submission.phase_id,
+            visibility_type="public",
+        )
+        refresh_leaderboard(
+            db,
+            competition=competition,
+            phase_id=submission.phase_id,
+            visibility_type="private",
+        )
+
+    db.commit()
+    db.refresh(submission)
+    return _serialize_submission(db=db, submission=submission)
+
+
 @router.get(
     "/submissions/{submission_id}/artifacts", response_model=list[SubmissionArtifactResponse]
 )
@@ -248,6 +292,7 @@ def _serialize_submission(*, db: Session, submission: Submission) -> SubmissionR
         source_checksum=submission.source_checksum,
         source_size_bytes=submission.source_size_bytes,
         is_late_submission=submission.is_late_submission,
+        display_on_leaderboard=submission.display_on_leaderboard,
         created_at=submission.created_at,
         latest_score=(
             None

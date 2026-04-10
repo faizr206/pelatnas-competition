@@ -26,6 +26,7 @@ import {
   getOptionalSession,
   getSubmissions,
   submitCompetitionSubmission,
+  updateSubmissionLeaderboardVisibility,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type {
@@ -247,6 +248,38 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
       setActiveJob(
         submissionResult.value.find((submission) => submission.latest_job)?.latest_job ??
           null,
+      );
+    }
+  }
+
+  async function handleSubmissionLeaderboardVisibilityChange(
+    submissionId: string,
+    displayOnLeaderboard: boolean,
+  ) {
+    setResourceMessage(null);
+    try {
+      const updatedSubmission = await updateSubmissionLeaderboardVisibility(
+        submissionId,
+        displayOnLeaderboard,
+      );
+      setSubmissions((current) =>
+        current.map((submission) =>
+          submission.id === submissionId ? updatedSubmission : submission,
+        ),
+      );
+
+      const refreshedPublicLeaderboard = await getLeaderboard(slug, "public");
+      setPublicLeaderboard(refreshedPublicLeaderboard);
+
+      if (privateLeaderboardOpen && leaderboardVisibility === "private") {
+        const refreshedPrivateLeaderboard = await getLeaderboard(slug, "private");
+        setPrivateLeaderboard(refreshedPrivateLeaderboard);
+      }
+    } catch (updateError) {
+      setResourceMessage(
+        updateError instanceof Error
+          ? updateError.message
+          : "Failed to update leaderboard visibility for the submission.",
       );
     }
   }
@@ -484,6 +517,7 @@ export function CompetitionWorkspace({ slug }: CompetitionWorkspaceProps) {
                 submissions={submissions}
                 user={user}
                 onFileChange={setSubmissionFile}
+                onLeaderboardVisibilityChange={handleSubmissionLeaderboardVisibilityChange}
                 onSubmit={handleSubmission}
                 onTypeChange={setSubmissionType}
               />
@@ -902,6 +936,7 @@ function SubmissionsTab({
   submissions,
   user,
   onFileChange,
+  onLeaderboardVisibilityChange,
   onSubmit,
   onTypeChange,
 }: {
@@ -916,6 +951,10 @@ function SubmissionsTab({
   submissions: Submission[];
   user: User | null;
   onFileChange: (file: File | null) => void;
+  onLeaderboardVisibilityChange: (
+    submissionId: string,
+    displayOnLeaderboard: boolean,
+  ) => Promise<void>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   onTypeChange: (value: string) => void;
 }) {
@@ -1011,19 +1050,20 @@ function SubmissionsTab({
         <div className="px-6 pb-6 pt-1">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>File</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Public Score</TableHead>
-                <TableHead>Private Score</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead>Logs</TableHead>
-              </TableRow>
-            </TableHeader>
+                <TableRow>
+                  <TableHead>File</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Public Score</TableHead>
+                  <TableHead>Private Score</TableHead>
+                  <TableHead>Leaderboard</TableHead>
+                  <TableHead>Submitted</TableHead>
+                  <TableHead>Logs</TableHead>
+                </TableRow>
+              </TableHeader>
             <TableBody>
               {submissions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-sm text-[#757575]">
+                  <TableCell colSpan={7} className="text-sm text-[#757575]">
                     No submissions recorded yet.
                   </TableCell>
                 </TableRow>
@@ -1062,6 +1102,25 @@ function SubmissionsTab({
                         : privateLeaderboardOpen
                           ? formatScore(submission.latest_score.private_score_value)
                           : "Hidden"}
+                    </TableCell>
+                    <TableCell>
+                      {user.is_admin ? (
+                        <label className="flex items-center gap-2 text-sm text-[#555555]">
+                          <input
+                            checked={submission.display_on_leaderboard}
+                            onChange={(event) => {
+                              void onLeaderboardVisibilityChange(
+                                submission.id,
+                                event.target.checked,
+                              );
+                            }}
+                            type="checkbox"
+                          />
+                          Show
+                        </label>
+                      ) : (
+                        submission.display_on_leaderboard ? "Shown" : "Hidden"
+                      )}
                     </TableCell>
                     <TableCell>{formatDateTime(submission.created_at)}</TableCell>
                     <TableCell>

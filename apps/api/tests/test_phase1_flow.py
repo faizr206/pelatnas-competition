@@ -557,3 +557,71 @@ def test_hidden_admin_submissions_are_excluded_from_leaderboard(client, monkeypa
     leaderboard_response = client.get("/api/v1/competitions/hidden-admin-comp/leaderboard/public")
     assert leaderboard_response.status_code == 200
     assert leaderboard_response.json() == []
+
+
+def test_admin_can_hide_individual_submission_from_leaderboard(client, monkeypatch) -> None:
+    _login_admin(client)
+
+    competition_response = client.post(
+        "/api/v1/competitions",
+        json={
+            "slug": "submission-visibility-comp",
+            "title": "Submission Visibility Competition",
+            "description": "Admins can hide individual submissions from leaderboard",
+            "visibility": "public",
+            "status": "active",
+            "scoring_metric": "row_count",
+            "scoring_direction": "max",
+            "phase": {
+                "name": "main",
+                "starts_at": "2026-01-01T00:00:00Z",
+                "ends_at": "2099-12-31T00:00:00Z",
+                "submission_limit_per_day": 5,
+                "scoring_version": "v1",
+                "rules_version": "v1",
+            },
+        },
+    )
+    assert competition_response.status_code == 201
+
+    from apps.worker.worker import queue as worker_queue
+
+    monkeypatch.setattr(
+        worker_queue.process_submission_task,
+        "apply_async",
+        lambda args: DummyAsyncResult(),
+    )
+
+    submission_response = client.post(
+        "/api/v1/competitions/submission-visibility-comp/submissions",
+        data={"submission_type": "csv"},
+        files={
+            "source_file": (
+                "submission.csv",
+                BytesIO(b"prediction\n0.1\n0.2\n0.3\n"),
+                "text/csv",
+            )
+        },
+    )
+    assert submission_response.status_code == 202
+    process_submission_job(submission_response.json()["id"])
+
+    submissions_response = client.get("/api/v1/competitions/submission-visibility-comp/submissions")
+    assert submissions_response.status_code == 200
+    submission_payload = submissions_response.json()[0]
+    assert submission_payload["display_on_leaderboard"] is True
+
+    leaderboard_before = client.get("/api/v1/competitions/submission-visibility-comp/leaderboard/public")
+    assert leaderboard_before.status_code == 200
+    assert len(leaderboard_before.json()) == 1
+
+    hide_response = client.patch(
+        f"/api/v1/submissions/{submission_payload['id']}/leaderboard-visibility",
+        json={"display_on_leaderboard": False},
+    )
+    assert hide_response.status_code == 200
+    assert hide_response.json()["display_on_leaderboard"] is False
+
+    leaderboard_after = client.get("/api/v1/competitions/submission-visibility-comp/leaderboard/public")
+    assert leaderboard_after.status_code == 200
+    assert leaderboard_after.json() == []

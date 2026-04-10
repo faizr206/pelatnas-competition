@@ -32,6 +32,7 @@ def refresh_leaderboard(
             .where(Submission.competition_id == competition.id)
             .where(Submission.phase_id == phase_id)
             .where(Submission.is_late_submission.is_(False))
+            .where(Submission.display_on_leaderboard.is_(True))
             .where(User.hide_from_leaderboard.is_(False))
         ).all()
     ]

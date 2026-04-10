@@ -189,6 +189,7 @@ export type Submission = {
   source_checksum: string;
   source_size_bytes: number;
   is_late_submission: boolean;
+  display_on_leaderboard: boolean;
   created_at: string;
   latest_score: {
     metric_name: string;

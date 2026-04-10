@@ -130,6 +130,25 @@ export async function getJob(jobId: string) {
   return expectJson<Job>(response);
 }
 
+export async function updateSubmissionLeaderboardVisibility(
+  submissionId: string,
+  displayOnLeaderboard: boolean,
+) {
+  const response = await fetch(
+    `${apiBaseUrl}/submissions/${submissionId}/leaderboard-visibility`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ display_on_leaderboard: displayOnLeaderboard }),
+    },
+  );
+
+  return expectJson<Submission>(response);
+}
+
 export async function login(email: string, password: string) {
   const response = await fetch(`${apiBaseUrl}/auth/login`, {
     method: "POST",

@@ -33,6 +33,7 @@ def create_submission(
         source_checksum=source_checksum,
         source_size_bytes=source_size_bytes,
         is_late_submission=is_late_submission,
+        display_on_leaderboard=True,
         status="pending",
     )
     db.add(submission)

@@ -132,6 +132,7 @@ class Submission(TimestampMixin, Base):
     source_checksum: Mapped[str] = mapped_column(String(255), nullable=False)
     source_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     is_late_submission: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    display_on_leaderboard: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     runtime_image: Mapped[str | None] = mapped_column(String(255), nullable=True)
     runtime_image_digest: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
