@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -19,8 +18,13 @@ from apps.api.app.schemas.admin_monitoring import (
 from apps.api.app.schemas.competitions import CompetitionResponse
 from apps.api.app.schemas.jobs import JobResponse
 from apps.api.app.schemas.submissions import ScoreSummaryResponse
-from packages.db.models import Competition, Job, Submission, User
-from packages.storage.service import build_attachment_content_disposition, get_object
+from packages.db.models import Competition, Job, Submission, SubmissionArtifact, User
+from packages.leaderboard.service import refresh_leaderboard
+from packages.storage.service import (
+    build_attachment_content_disposition,
+    delete_file_if_present,
+    get_object,
+)
 from packages.workers.service import (
     list_worker_nodes,
     upsert_worker_node,
@@ -231,6 +235,57 @@ def get_submission_source_file(
             )
         },
     )
+
+
+@router.delete(
+    "/competitions/{slug}/submissions/{submission_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_competition_submission(
+    slug: str,
+    submission_id: str,
+    _: User = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    competition = get_admin_competition_by_slug(db, slug=slug)
+    if competition is None:
+        raise HTTPException(status_code=404, detail="Competition not found.")
+
+    submission = db.get(Submission, submission_id)
+    if submission is None or submission.competition_id != competition.id:
+        raise HTTPException(status_code=404, detail="Submission not found.")
+
+    artifacts = list(
+        db.scalars(
+            select(SubmissionArtifact).where(SubmissionArtifact.submission_id == submission.id)
+        ).all()
+    )
+    for artifact in artifacts:
+        delete_file_if_present(artifact.storage_path)
+
+    delete_file_if_present(submission.source_archive_path)
+    if submission.manifest_path:
+        delete_file_if_present(submission.manifest_path)
+
+    phase_id = submission.phase_id
+    db.delete(submission)
+    db.flush()
+
+    refresh_leaderboard(
+        db,
+        competition=competition,
+        phase_id=phase_id,
+        visibility_type="public",
+    )
+    refresh_leaderboard(
+        db,
+        competition=competition,
+        phase_id=phase_id,
+        visibility_type="private",
+    )
+
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 def _serialize_admin_task(

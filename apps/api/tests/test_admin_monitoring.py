@@ -6,13 +6,15 @@ from packages.db.models import (
     Competition,
     CompetitionPhase,
     Job,
+    LeaderboardEntry,
     Score,
     Submission,
     User,
     WorkerNode,
 )
+from packages.leaderboard.service import refresh_leaderboard
 from packages.db.session import session_scope
-from packages.storage.service import save_text_file
+from packages.storage.service import get_object, save_text_file
 
 
 def _login_admin(client) -> None:
@@ -163,6 +165,7 @@ def test_admin_can_list_competition_submissions_and_download_source_file(client)
         competition = session.scalar(select(Competition).where(Competition.slug == "test-comp"))
         if competition is None:
             raise AssertionError("Expected bootstrap competition to exist.")
+        competition_id = competition.id
 
         phase = session.scalar(
             select(CompetitionPhase).where(CompetitionPhase.competition_id == competition.id)
@@ -215,6 +218,109 @@ def test_admin_can_list_competition_submissions_and_download_source_file(client)
     download_response = client.get(f"/api/v1/admin/submissions/{submission_id}/source-file")
     assert download_response.status_code == 200
     assert download_response.text == "prediction\n0.1\n"
+
+
+def test_admin_can_delete_any_participant_submission_from_competition(client) -> None:
+    _login_admin(client)
+
+    with session_scope() as session:
+        competition = session.scalar(select(Competition).where(Competition.slug == "test-comp"))
+        if competition is None:
+            raise AssertionError("Expected bootstrap competition to exist.")
+        competition_id = competition.id
+
+        phase = session.scalar(
+            select(CompetitionPhase).where(CompetitionPhase.competition_id == competition.id)
+        )
+        if phase is None:
+            raise AssertionError("Expected bootstrap phase to exist.")
+
+        participant = User(
+            email="delete-me@example.com",
+            display_name="Delete Me",
+            password_hash=hash_password("delete-pass-123"),
+            status="active",
+            is_admin=False,
+        )
+        session.add(participant)
+        session.flush()
+
+        source_key = save_text_file(
+            "",
+            category="submissions",
+            competition_slug=competition.slug,
+            filename="delete-source.csv",
+            contents="prediction\n0.9\n",
+        )
+        submission = Submission(
+            competition_id=competition.id,
+            phase_id=phase.id,
+            user_id=participant.id,
+            submission_type="csv",
+            source_archive_path=source_key,
+            manifest_path=None,
+            source_original_filename="delete-source.csv",
+            source_content_type="text/csv",
+            source_checksum="checksum-delete",
+            source_size_bytes=15,
+            status="completed",
+            display_on_leaderboard=True,
+        )
+        session.add(submission)
+        session.flush()
+
+        session.add(
+            Score(
+                submission_id=submission.id,
+                metric_name="row_count",
+                metric_value=7.0,
+                score_value=7.0,
+                public_score_value=7.0,
+                private_score_value=7.0,
+                scoring_version="v1",
+            )
+        )
+        refresh_leaderboard(
+            session,
+            competition=competition,
+            phase_id=phase.id,
+            visibility_type="public",
+        )
+        refresh_leaderboard(
+            session,
+            competition=competition,
+            phase_id=phase.id,
+            visibility_type="private",
+        )
+        session.commit()
+        submission_id = submission.id
+
+    list_response = client.get("/api/v1/admin/competitions/test-comp/submissions")
+    assert list_response.status_code == 200
+    assert any(
+        item["submission_id"] == submission_id for item in list_response.json()
+    )
+
+    delete_response = client.delete(
+        f"/api/v1/admin/competitions/test-comp/submissions/{submission_id}"
+    )
+    assert delete_response.status_code == 204
+
+    with session_scope() as session:
+        assert session.get(Submission, submission_id) is None
+        remaining_entries = list(
+            session.scalars(
+                select(LeaderboardEntry).where(LeaderboardEntry.competition_id == competition_id)
+            ).all()
+        )
+        assert remaining_entries == []
+
+    try:
+        get_object(source_key)
+    except FileNotFoundError:
+        pass
+    else:
+        raise AssertionError("Expected deleted submission source file to be removed from storage.")
 
 
 def test_admin_can_view_upcoming_competitions_from_admin_endpoints(client) -> None:

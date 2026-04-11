@@ -252,6 +252,21 @@ export async function getAdminCompetitionSubmissions(slug: string) {
   return expectJson<AdminTask[]>(response);
 }
 
+export async function deleteAdminCompetitionSubmission(
+  slug: string,
+  submissionId: string,
+) {
+  const response = await fetch(
+    `${apiBaseUrl}/admin/competitions/${slug}/submissions/${submissionId}`,
+    {
+      method: "DELETE",
+      credentials: "include",
+    },
+  );
+
+  return expectJson<null>(response);
+}
+
 export function getSubmissionLogsUrl(submissionId: string) {
   return `${apiBaseUrl}/submissions/${submissionId}/logs`;
 }

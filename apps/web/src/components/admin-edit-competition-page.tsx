@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  deleteAdminCompetitionSubmission,
   getAdminCompetition,
   getAdminCompetitionSubmissions,
   getAdminSubmissionSourceFileUrl,
@@ -58,6 +59,7 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
   const [scoringBusy, setScoringBusy] = useState(false);
   const [rescoreBusy, setRescoreBusy] = useState(false);
   const [competitionSubmissions, setCompetitionSubmissions] = useState<AdminTask[]>([]);
+  const [deletingSubmissionId, setDeletingSubmissionId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -188,6 +190,33 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
       );
     } finally {
       setRescoreBusy(false);
+    }
+  }
+
+  async function handleDeleteSubmission(submission: AdminTask) {
+    const confirmed = window.confirm(
+      `Delete submission ${submission.source_original_filename} from ${submission.participant_email}? This cannot be undone.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingSubmissionId(submission.submission_id);
+    setMessage(null);
+    setScoringMessage(null);
+
+    try {
+      await deleteAdminCompetitionSubmission(slug, submission.submission_id);
+      setCompetitionSubmissions((current) =>
+        current.filter((item) => item.submission_id !== submission.submission_id),
+      );
+      setMessage(`Deleted submission ${submission.source_original_filename}.`);
+    } catch (submitError) {
+      setMessage(
+        submitError instanceof Error ? submitError.message : "Failed to delete submission.",
+      );
+    } finally {
+      setDeletingSubmissionId(null);
     }
   }
 
@@ -431,12 +460,13 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
                   <TableHead>Submitted</TableHead>
                   <TableHead>Download</TableHead>
                   <TableHead>Logs</TableHead>
+                  <TableHead>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {competitionSubmissions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-sm text-[#757575]">
+                    <TableCell colSpan={9} className="text-sm text-[#757575]">
                       No submissions have been uploaded for this competition yet.
                     </TableCell>
                   </TableRow>
@@ -499,6 +529,19 @@ export function AdminEditCompetitionPage({ slug }: AdminEditCompetitionPageProps
                         ) : (
                           "-"
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          className="h-8 rounded-full bg-[#8f2525] px-3 text-xs font-semibold hover:bg-[#781f1f]"
+                          disabled={deletingSubmissionId === submission.submission_id}
+                          onClick={() => void handleDeleteSubmission(submission)}
+                          type="button"
+                          variant="destructive"
+                        >
+                          {deletingSubmissionId === submission.submission_id
+                            ? "Removing..."
+                            : "Remove"}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
